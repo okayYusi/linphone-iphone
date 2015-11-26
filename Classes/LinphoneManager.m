@@ -75,7 +75,7 @@ NSString *const kLinphoneFileTransferRecvUpdate = @"LinphoneFileTransferRecvUpda
 
 const int kLinphoneAudioVbrCodecDefaultBitrate = 36; /*you can override this from linphonerc or linphonerc-factory*/
 
-extern void libmsilbc_init(void);
+//extern void libmsilbc_init(void);
 extern void libmsamr_init(void);
 extern void libmsx264_init(void);
 extern void libmsopenh264_init(void);
@@ -889,8 +889,8 @@ static void linphone_iphone_registration_state(LinphoneCore *lc, LinphoneProxyCo
 
 #pragma mark - Auth info Function
 
-static void linphone_iphone_popup_password_request(LinphoneCore *lc, const char *realm, const char *username,
-												   const char *domain) {
+static void linphone_iphone_popup_password_request(LinphoneCore *lc, const char *realmC, const char *usernameC,
+												   const char *domainC) {
 	// let the wizard handle its own errors
 	if ([PhoneMainView.instance currentView] != WizardViewController.compositeViewDescription) {
 		static DTAlertView *alertView = nil;
@@ -900,34 +900,34 @@ static void linphone_iphone_popup_password_request(LinphoneCore *lc, const char 
 			[alertView dismissWithClickedButtonIndex:0 animated:NO];
 		}
 
+		NSString *realm = [NSString stringWithUTF8String:realmC];
+		NSString *username = [NSString stringWithUTF8String:usernameC];
+		NSString *domain = [NSString stringWithUTF8String:domainC];
 		alertView = [[DTAlertView alloc]
 			initWithTitle:NSLocalizedString(@"Authentication needed.", nil)
 				  message:[NSString stringWithFormat:NSLocalizedString(@"Registration failed because authentication is "
-																	   @"missing or invalid for %s@%s.\nYou can "
+																	   @"missing or invalid for %@@%@.\nYou can "
 																	   @"provide password again, or check your "
 																	   @"account configuration in the settings.",
 																	   nil),
 													 username, realm]];
 		alertView.alertViewStyle = UIAlertViewStyleSecureTextInput;
-		[alertView addCancelButtonWithTitle:NSLocalizedString(@"Cancel", nil) block:nil];
-		__weak UITextField *passwordField = [alertView textFieldAtIndex:0];
+		[alertView addCancelButtonWithTitle:NSLocalizedString(@"Go to settings", nil)
+									  block:^{
+										[[PhoneMainView instance]
+											changeCurrentView:[SettingsViewController compositeViewDescription]];
+									  }];
 
-		[alertView addButtonWithTitle:NSLocalizedString(@"Continue", nil)
-								block:^{
-								  LinphoneAuthInfo *info = (LinphoneAuthInfo *)linphone_core_find_auth_info(
-									  [LinphoneManager getLc], realm, username, domain);
-								  if (info) {
-									  linphone_auth_info_set_passwd(info, passwordField.text.UTF8String);
-									  linphone_auth_info_set_ha1(info, NULL);
-									  linphone_proxy_config_refresh_register(
-										  linphone_core_get_default_proxy_config([LinphoneManager getLc]));
-								  } else {
-									  LOGE(@"Could not find auth info associated with %s@%s, going to settings!",
-										   username, domain);
-									  [[PhoneMainView instance]
-										  changeCurrentView:[SettingsViewController compositeViewDescription]];
-								  }
-								}];
+		[alertView
+			addButtonWithTitle:NSLocalizedString(@"Continue", nil)
+						 block:^{
+						   NSString *password = [alertView textFieldAtIndex:0].text;
+						   LinphoneAuthInfo *info =
+							   linphone_auth_info_new(username.UTF8String, NULL, password.UTF8String, NULL,
+													  realm.UTF8String, domain.UTF8String);
+						   linphone_core_add_auth_info([LinphoneManager getLc], info);
+						   [LinphoneManager.instance refreshRegisters];
+						 }];
 		[alertView show];
 	}
 }
@@ -1467,7 +1467,7 @@ static BOOL libStarted = FALSE;
 
 	ms_init(); // Need to initialize mediastreamer2 before loading the plugins
 	// Load plugins if available in the linphone SDK - otherwise these calls will do nothing
-	libmsilbc_init();
+	//libmsilbc_init();
 	libmssilk_init();
 	libmsamr_init();
 	libmsx264_init();
@@ -1952,7 +1952,7 @@ static void audioRouteChangeListenerCallback(void *inUserData,					  // 1
 		// Finally we can make the call
 		LinphoneProxyConfig *proxyCfg;
 		linphone_core_get_default_proxy(theLinphoneCore, &proxyCfg);
-		LinphoneCallParams *lcallParams = linphone_core_create_default_call_parameters(theLinphoneCore);
+		LinphoneCallParams *lcallParams = linphone_core_create_call_params(theLinphoneCore, NULL);
 		if ([self lpConfigBoolForKey:@"edge_opt_preference"] && (self.network == network_2g)) {
 			LOGI(@"Enabling low bandwidth mode");
 			linphone_call_params_enable_low_bandwidth(lcallParams, YES);
