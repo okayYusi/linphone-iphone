@@ -26,73 +26,38 @@
 
 @implementation UISpeakerButton
 
-#pragma mark - Static Functions
-
-static void audioRouteChangeListenerCallback(void *inUserData,					  // 1
-											 AudioSessionPropertyID inPropertyID, // 2
-											 UInt32 inPropertyValueSize,		  // 3
-											 const void *inPropertyValue		  // 4
-											 ) {
-	if (inPropertyID != kAudioSessionProperty_AudioRouteChange)
-		return; // 5
-	UISpeakerButton *button = (__bridge UISpeakerButton *)inUserData;
-	[button update];
-}
-
-- (void)initUISpeakerButton {
-	AudioSessionInitialize(NULL, NULL, NULL, NULL);
-	OSStatus lStatus = AudioSessionAddPropertyListener(kAudioSessionProperty_AudioRouteChange,
-													   audioRouteChangeListenerCallback, (__bridge void *)(self));
-	if (lStatus) {
-		LOGE(@"cannot register route change handler [%ld]", lStatus);
-	}
-}
-
-- (id)init {
-	self = [super init];
-	if (self) {
-		[self initUISpeakerButton];
-	}
-	return self;
-}
-
-- (id)initWithFrame:(CGRect)frame {
-	self = [super initWithFrame:frame];
-	if (self) {
-		[self initUISpeakerButton];
-	}
-	return self;
-}
-
-- (id)initWithCoder:(NSCoder *)decoder {
-	self = [super initWithCoder:decoder];
-	if (self) {
-		[self initUISpeakerButton];
-	}
+INIT_WITH_COMMON_CF {
+	[NSNotificationCenter.defaultCenter addObserver:self
+										   selector:@selector(audioRouteChangeListenerCallback:)
+											   name:AVAudioSessionRouteChangeNotification
+											 object:nil];
 	return self;
 }
 
 - (void)dealloc {
-	OSStatus lStatus = AudioSessionRemovePropertyListenerWithUserData(
-		kAudioSessionProperty_AudioRouteChange, audioRouteChangeListenerCallback, (__bridge void *)(self));
-	if (lStatus) {
-		LOGE(@"cannot un register route change handler [%ld]", lStatus);
-	}
+	[NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
 #pragma mark - UIToggleButtonDelegate Functions
 
+- (void)audioRouteChangeListenerCallback:(NSNotification *)notif {
+	if ([[notif.userInfo valueForKey:AVAudioSessionRouteChangeReasonKey] integerValue] ==
+		AVAudioSessionRouteChangeReasonRouteConfigurationChange) {
+		[self update];
+	}
+}
+
 - (void)onOn {
-	[[LinphoneManager instance] setSpeakerEnabled:TRUE];
+	[LinphoneManager.instance setSpeakerEnabled:TRUE];
 }
 
 - (void)onOff {
-	[[LinphoneManager instance] setSpeakerEnabled:FALSE];
+	[LinphoneManager.instance setSpeakerEnabled:FALSE];
 }
 
 - (bool)onUpdate {
-	[self setEnabled:[[LinphoneManager instance] allowSpeaker]];
-	return [[LinphoneManager instance] speakerEnabled];
+	self.enabled = [LinphoneManager.instance allowSpeaker];
+	return [LinphoneManager.instance speakerEnabled];
 }
 
 @end

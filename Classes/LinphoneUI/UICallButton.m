@@ -59,49 +59,55 @@
 #pragma mark -
 
 - (void)touchUp:(id)sender {
-	NSString *address = [addressField text];
-	NSString *displayName = nil;
+	NSString *address = addressField.text;
+	if (address.length == 0) {
+		LinphoneCallLog *log = linphone_core_get_last_outgoing_call_log(LC);
+		if (log) {
+			LinphoneAddress *to = linphone_call_log_get_to(log);
+			const char *domain = linphone_address_get_domain(to);
+			char *bis_address = NULL;
+			LinphoneProxyConfig *def_proxy = linphone_core_get_default_proxy_config(LC);
 
-	if ([address length] == 0) {
-		const MSList *logs = linphone_core_get_call_logs([LinphoneManager getLc]);
-		while (logs) {
-			LinphoneCallLog *log = logs->data;
-			if (linphone_call_log_get_dir(log) == LinphoneCallOutgoing) {
-				LinphoneProxyConfig *def_proxy = NULL;
-				LinphoneAddress *to = linphone_call_log_get_to(log);
-				const char *domain = linphone_address_get_domain(to);
-				char *bis_address = NULL;
-
-				linphone_core_get_default_proxy([LinphoneManager getLc], &def_proxy);
-
-				// if the 'to' address is on the default proxy, only present the username
-				if (def_proxy) {
-					const char *def_domain = linphone_proxy_config_get_domain(def_proxy);
-					if (def_domain && domain && !strcmp(domain, def_domain)) {
-						bis_address = ms_strdup(linphone_address_get_username(to));
-					}
+			// if the 'to' address is on the default proxy, only present the username
+			if (def_proxy) {
+				const char *def_domain = linphone_proxy_config_get_domain(def_proxy);
+				if (def_domain && domain && !strcmp(domain, def_domain)) {
+					bis_address = ms_strdup(linphone_address_get_username(to));
 				}
-
-				if (bis_address == NULL) {
-					bis_address = linphone_address_as_string_uri_only(to);
-				}
-
-				[addressField setText:[NSString stringWithUTF8String:bis_address]];
-				ms_free(bis_address);
-				// return after filling the address, let the user confirm the call by pressing again
-				return;
 			}
-			logs = ms_list_next(logs);
+			if (bis_address == NULL) {
+				bis_address = linphone_address_as_string_uri_only(to);
+			}
+			[addressField setText:[NSString stringWithUTF8String:bis_address]];
+			ms_free(bis_address);
+			// return after filling the address, let the user confirm the call by pressing again
+			return;
 		}
 	}
 
 	if ([address length] > 0) {
-		ABRecordRef contact = [[[LinphoneManager instance] fastAddressBook] getContact:address];
-		if (contact) {
-			displayName = [FastAddressBook getContactDisplayName:contact];
-		}
-		[[LinphoneManager instance] call:address displayName:displayName transfer:FALSE];
+		LinphoneAddress *addr = linphone_core_interpret_url(LC, address.UTF8String);
+		[LinphoneManager.instance call:addr];
+		if (addr)
+			linphone_address_destroy(addr);
 	}
 }
 
+- (void)updateIcon {
+	if (linphone_core_video_capture_enabled(LC) && linphone_core_get_video_policy(LC)->automatically_initiate) {
+		[self setImage:[UIImage imageNamed:@"call_video_start_default.png"] forState:UIControlStateNormal];
+		[self setImage:[UIImage imageNamed:@"call_video_start_disabled.png"] forState:UIControlStateDisabled];
+	} else {
+		[self setImage:[UIImage imageNamed:@"call_audio_start_default.png"] forState:UIControlStateNormal];
+		[self setImage:[UIImage imageNamed:@"call_audio_start_disabled.png"] forState:UIControlStateDisabled];
+	}
+
+	if (LinphoneManager.instance.nextCallIsTransfer) {
+		[self setImage:[UIImage imageNamed:@"call_transfer_default.png"] forState:UIControlStateNormal];
+		[self setImage:[UIImage imageNamed:@"call_transfer_disabled.png"] forState:UIControlStateDisabled];
+	} else if (linphone_core_get_calls_nb(LC) > 0) {
+		[self setImage:[UIImage imageNamed:@"call_add_default.png"] forState:UIControlStateNormal];
+		[self setImage:[UIImage imageNamed:@"call_add_disabled.png"] forState:UIControlStateDisabled];
+	}
+}
 @end

@@ -20,22 +20,28 @@
 #import "UIContactCell.h"
 #import "Utils.h"
 #import "FastAddressBook.h"
+#import "UILabel+Boldify.h"
 
 @implementation UIContactCell
-
-@synthesize firstNameLabel;
-@synthesize lastNameLabel;
-@synthesize avatarImage;
-@synthesize contact;
 
 #pragma mark - Lifecycle Functions
 
 - (id)initWithIdentifier:(NSString *)identifier {
 	if ((self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier]) != nil) {
-		NSArray *arrayOfViews = [[NSBundle mainBundle] loadNibNamed:@"UIContactCell" owner:self options:nil];
+		NSArray *arrayOfViews =
+			[[NSBundle mainBundle] loadNibNamed:NSStringFromClass(self.class) owner:self options:nil];
 
-		if ([arrayOfViews count] >= 1) {
-			[self.contentView addSubview:[arrayOfViews objectAtIndex:0]];
+		// resize cell to match .nib size. It is needed when resized the cell to
+		// correctly adapt its height too
+		UIView *sub = ((UIView *)[arrayOfViews objectAtIndex:0]);
+		[self setFrame:CGRectMake(0, 0, sub.frame.size.width, sub.frame.size.height)];
+		[self addSubview:sub];
+
+		// Sections are wider on iPad and overlap linphone image - let's move it a bit
+		if (IPAD) {
+			CGRect frame = _linphoneImage.frame;
+			frame.origin.x -= frame.size.width / 2;
+			_linphoneImage.frame = frame;
 		}
 	}
 	return self;
@@ -44,8 +50,9 @@
 #pragma mark - Property Functions
 
 - (void)setContact:(ABRecordRef)acontact {
-	contact = acontact;
-	[self update];
+	_contact = acontact;
+	[ContactDisplay setDisplayNameLabel:_nameLabel forContact:_contact];
+	_linphoneImage.hidden = !([FastAddressBook contactHasValidSipDomain:_contact]);
 }
 
 #pragma mark -
@@ -59,74 +66,21 @@
 }
 
 - (NSString *)accessibilityLabel {
-	return [NSString stringWithFormat:@"%@ %@", firstNameLabel.text, lastNameLabel.text];
+	return _nameLabel.text;
 }
 
-- (void)update {
-	if (contact == NULL) {
-		LOGW(@"Cannot update contact cell: null contact");
-		return;
+- (void)setEditing:(BOOL)editing {
+	[self setEditing:editing animated:FALSE];
+}
+
+- (void)setEditing:(BOOL)editing animated:(BOOL)animated {
+	if (animated) {
+		[UIView beginAnimations:nil context:nil];
+		[UIView setAnimationDuration:0.3];
 	}
-
-	NSString *lFirstName = CFBridgingRelease(ABRecordCopyValue(contact, kABPersonFirstNameProperty));
-	NSString *lLocalizedFirstName = [FastAddressBook localizedLabel:lFirstName];
-
-	NSString *lLastName = CFBridgingRelease(ABRecordCopyValue(contact, kABPersonLastNameProperty));
-	NSString *lLocalizedLastName = [FastAddressBook localizedLabel:lLastName];
-
-	NSString *lOrganization = CFBridgingRelease(ABRecordCopyValue(contact, kABPersonOrganizationProperty));
-	NSString *lLocalizedOrganization = [FastAddressBook localizedLabel:lOrganization];
-
-	[firstNameLabel setText:(NSString *)(lLocalizedFirstName)];
-	[lastNameLabel setText:(NSString *)(lLocalizedLastName)];
-
-	if (lLocalizedFirstName == nil && lLocalizedLastName == nil) {
-		[firstNameLabel setText:(NSString *)(lLocalizedOrganization)];
-	}
-}
-
-- (void)layoutSubviews {
-	[super layoutSubviews];
-	//
-	// Adapt size
-	//
-	CGRect firstNameFrame = [firstNameLabel frame];
-	CGRect lastNameFrame = [lastNameLabel frame];
-
-	// Compute firstName size
-	CGSize firstNameSize = [[firstNameLabel text] sizeWithFont:[firstNameLabel font]];
-	CGSize lastNameSize = [[lastNameLabel text] sizeWithFont:[lastNameLabel font]];
-	float sum = firstNameSize.width + 5 + lastNameSize.width;
-	float limit = self.bounds.size.width - 5 - firstNameFrame.origin.x;
-	if (sum > limit) {
-		firstNameSize.width *= limit / sum;
-		lastNameSize.width *= limit / sum;
-	}
-
-	firstNameFrame.size.width = firstNameSize.width;
-	lastNameFrame.size.width = lastNameSize.width;
-
-	// Compute lastName size & position
-	lastNameFrame.origin.x = firstNameFrame.origin.x + firstNameFrame.size.width;
-	if (firstNameFrame.size.width)
-		lastNameFrame.origin.x += 5;
-
-	[firstNameLabel setFrame:firstNameFrame];
-	[lastNameLabel setFrame:lastNameFrame];
-}
-
-- (void)setHighlighted:(BOOL)highlighted {
-	[self setHighlighted:highlighted animated:FALSE];
-}
-
-- (void)setHighlighted:(BOOL)highlighted animated:(BOOL)animated {
-	[super setHighlighted:highlighted animated:animated];
-	if (highlighted) {
-		[lastNameLabel setTextColor:[UIColor whiteColor]];
-		[firstNameLabel setTextColor:[UIColor whiteColor]];
-	} else {
-		[lastNameLabel setTextColor:[UIColor blackColor]];
-		[firstNameLabel setTextColor:[UIColor blackColor]];
+	_linphoneImage.alpha = editing ? 0 : 1;
+	if (animated) {
+		[UIView commitAnimations];
 	}
 }
 

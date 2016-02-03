@@ -41,8 +41,8 @@ static NSString *kIASKCredits = @"Powered by InAppSettingsKit"; // Leave this as
 CGRect IASKCGRectSwap(CGRect rect);
 
 @interface IASKAppSettingsViewController ()
-@property (nonatomic, strong) NSMutableArray *viewList;
-@property (nonatomic, strong) id currentFirstResponder;
+@property(nonatomic, strong) NSMutableArray *viewList;
+@property(nonatomic, strong) id currentFirstResponder;
 
 - (void)_textChanged:(id)sender;
 - (void)synchronizeSettings;
@@ -137,9 +137,10 @@ CGRect IASKCGRectSwap(CGRect rect);
 - (id)initWithCoder:(NSCoder *)aDecoder {
     self = [super initWithCoder:aDecoder];
     if (self) {
-        if (!(self = [self initWithStyle:UITableViewStyleGrouped])) return nil;
-    }
-    return self;
+		if (!(self = [self initWithStyle:UITableViewStyleGrouped]))
+			return nil;
+	}
+	return self;
 }
 
 - (NSMutableArray *)viewList {
@@ -203,6 +204,12 @@ CGRect IASKCGRectSwap(CGRect rect);
 												   object:[NSUserDefaults standardUserDefaults]];
 		[self userDefaultsDidChange]; // force update in case of changes while we were hidden
 	}
+
+	// hack gautier: be notified when changing page
+	if (self.delegate && [self.delegate conformsToProtocol:@protocol(IASKSettingsDelegate)]) {
+		[self.delegate settingsViewControllerWillAppear:self];
+	}
+
 	[super viewWillAppear:animated];
 }
 
@@ -252,12 +259,12 @@ CGRect IASKCGRectSwap(CGRect rect);
 - (void)setHiddenKeys:(NSSet*)theHiddenKeys animated:(BOOL)animated {
     if (_hiddenKeys != theHiddenKeys) {
         NSSet *oldHiddenKeys = _hiddenKeys;
-        _hiddenKeys = theHiddenKeys;
-        
-        if (animated) {			
-            [self.tableView beginUpdates];
-            
-            NSMutableSet *showKeys = [NSMutableSet setWithSet:oldHiddenKeys];
+		_hiddenKeys = theHiddenKeys;
+
+		if (animated) {
+			[self.tableView beginUpdates];
+
+			NSMutableSet *showKeys = [NSMutableSet setWithSet:oldHiddenKeys];
             [showKeys minusSet:theHiddenKeys];
             
             NSMutableSet *hideKeys = [NSMutableSet setWithSet:theHiddenKeys];
@@ -335,13 +342,13 @@ CGRect IASKCGRectSwap(CGRect rect);
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 
-    _viewList = nil;
+	_viewList = nil;
 	_file = nil;
 	_currentFirstResponder = nil;
 	_settingsReader = nil;
-    _settingsStore = nil;
-    _hiddenKeys = nil;
-	
+	_settingsStore = nil;
+	_hiddenKeys = nil;
+
 	_delegate = nil;
 
 }
@@ -359,11 +366,11 @@ CGRect IASKCGRectSwap(CGRect rect);
 }
 
 - (void)toggledValue:(id)sender {
-    IASKSwitch *toggle    = (IASKSwitch*)sender;
-    IASKSpecifier *spec   = [_settingsReader specifierForKey:[toggle key]];
-    
-    if ([toggle isOn]) {
-        if ([spec trueValue] != nil) {
+	IASKSwitch *toggle = (IASKSwitch *)sender;
+	IASKSpecifier *spec = [_settingsReader specifierForKey:[toggle key]];
+
+	if ([toggle isOn]) {
+		if ([spec trueValue] != nil) {
             [self.settingsStore setObject:[spec trueValue] forKey:[toggle key]];
         }
         else {
@@ -385,12 +392,13 @@ CGRect IASKCGRectSwap(CGRect rect);
 }
 
 - (void)sliderChangedValue:(id)sender {
-    IASKSlider *slider = (IASKSlider*)sender;
-    [self.settingsStore setFloat:[slider value] forKey:[slider key]];
-    [[NSNotificationCenter defaultCenter] postNotificationName:kIASKAppSettingChanged
-                                                        object:[slider key]
-                                                      userInfo:[NSDictionary dictionaryWithObject:[NSNumber numberWithFloat:[slider value]]
-                                                                                           forKey:[slider key]]];
+	IASKSlider *slider = (IASKSlider *)sender;
+	[self.settingsStore setFloat:[slider value] forKey:[slider key]];
+	[[NSNotificationCenter defaultCenter]
+		postNotificationName:kIASKAppSettingChanged
+					  object:[slider key]
+					userInfo:[NSDictionary dictionaryWithObject:[NSNumber numberWithFloat:[slider value]]
+														 forKey:[slider key]]];
 }
 
 
@@ -675,7 +683,7 @@ CGRect IASKCGRectSwap(CGRect rect);
             if (!initSelector) {
                 initSelector = @selector(init);
             }
-            UIViewController * vc = [vcClass alloc];
+			UIViewController *vc = [vcClass alloc];
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
 			vc = [vc performSelector:initSelector withObject:[specifier file] withObject:specifier];
@@ -720,8 +728,8 @@ CGRect IASKCGRectSwap(CGRect rect);
 		targetViewController.title = specifier.title;
         targetViewController.showCreditsFooter = NO;
         [[self navigationController] pushViewController:targetViewController animated:YES];
-    } else if ([[specifier type] isEqualToString:kIASKOpenURLSpecifier]) {
-        [tableView deselectRowAtIndexPath:indexPath animated:YES];
+	} else if ([[specifier type] isEqualToString:kIASKOpenURLSpecifier]) {
+		[tableView deselectRowAtIndexPath:indexPath animated:YES];
 		[[UIApplication sharedApplication] openURL:[NSURL URLWithString:specifier.file]];    
     } else if ([[specifier type] isEqualToString:kIASKButtonSpecifier]) {
         [tableView deselectRowAtIndexPath:indexPath animated:YES];
@@ -834,12 +842,12 @@ CGRect IASKCGRectSwap(CGRect rect);
 }
 
 - (void)_textChanged:(id)sender {
-    IASKTextField *text = (IASKTextField*)sender;
-    [_settingsStore setObject:[text text] forKey:[text key]];
-    [[NSNotificationCenter defaultCenter] postNotificationName:kIASKAppSettingChanged
-                                                        object:[text key]
-                                                      userInfo:[NSDictionary dictionaryWithObject:[text text]
-                                                                                           forKey:[text key]]];
+	IASKTextField *text = (IASKTextField *)sender;
+	[_settingsStore setObject:[text text] forKey:[text key]];
+	[[NSNotificationCenter defaultCenter]
+		postNotificationName:kIASKAppSettingChanged
+					  object:[text key]
+					userInfo:[NSDictionary dictionaryWithObject:[text text] forKey:[text key]]];
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)textField{
@@ -871,8 +879,7 @@ static NSDictionary *oldUserDefaults = nil;
 		}
 	}
 	oldUserDefaults = currentDict;
-	
-	
+
 	for (UITableViewCell *cell in self.tableView.visibleCells) {
 		if ([cell isKindOfClass:[IASKPSTextFieldSpecifierViewCell class]] && [((IASKPSTextFieldSpecifierViewCell*)cell).textField isFirstResponder]) {
 			[indexPathsToUpdate removeObject:[self.tableView indexPathForCell:cell]];

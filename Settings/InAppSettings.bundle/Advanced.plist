@@ -12,13 +12,27 @@
 		</dict>
 		<dict>
 			<key>DefaultValue</key>
-			<false/>
+			<string>0</string>
 			<key>Key</key>
 			<string>debugenable_preference</string>
 			<key>Title</key>
 			<string>Debug</string>
+			<key>Titles</key>
+			<array>
+				<string>None</string>
+				<string>Application only</string>
+				<string>Application and libraries warnings</string>
+				<string>All</string>
+			</array>
 			<key>Type</key>
-			<string>PSToggleSwitchSpecifier</string>
+			<string>PSMultiValueSpecifier</string>
+			<key>Values</key>
+			<array>
+				<string>0</string>
+				<string>32</string>
+				<string>8</string>
+				<string>1</string>
+			</array>
 		</dict>
 		<dict>
 			<key>Key</key>
@@ -35,6 +49,32 @@
 			<string>Clear Logs</string>
 			<key>Type</key>
 			<string>IASKButtonSpecifier</string>
+		</dict>
+		<dict>
+			<key>Title</key>
+			<string>Notifications</string>
+			<key>Type</key>
+			<string>PSGroupSpecifier</string>
+		</dict>
+		<dict>
+			<key>DefaultValue</key>
+			<true/>
+			<key>Key</key>
+			<string>show_msg_in_notif</string>
+			<key>Title</key>
+			<string>Show message in notification</string>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+		</dict>
+		<dict>
+			<key>DefaultValue</key>
+			<true/>
+			<key>Key</key>
+			<string>autoanswer_notif_preference</string>
+			<key>Title</key>
+			<string>Auto-answer after notification</string>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
 		</dict>
 		<dict>
 			<key>Title</key>
@@ -56,16 +96,6 @@
 			<key>DefaultValue</key>
 			<true/>
 			<key>Key</key>
-			<string>backgroundmode_preference</string>
-			<key>Title</key>
-			<string>Background mode</string>
-			<key>Type</key>
-			<string>PSToggleSwitchSpecifier</string>
-		</dict>
-		<dict>
-			<key>DefaultValue</key>
-			<true/>
-			<key>Key</key>
 			<string>start_at_boot_preference</string>
 			<key>Title</key>
 			<string>Start at boot</string>
@@ -76,9 +106,9 @@
 			<key>DefaultValue</key>
 			<true/>
 			<key>Key</key>
-			<string>autoanswer_notif_preference</string>
+			<string>show_msg_in_notif</string>
 			<key>Title</key>
-			<string>Auto-answer after notification</string>
+			<string>Show message in notification</string>
 			<key>Type</key>
 			<string>PSToggleSwitchSpecifier</string>
 		</dict>
@@ -91,24 +121,6 @@
 			<string>First login view</string>
 			<key>Type</key>
 			<string>PSToggleSwitchSpecifier</string>
-		</dict>
-		<dict>
-			<key>Key</key>
-			<string>expire_preference</string>
-			<key>Title</key>
-			<string>Expire</string>
-			<key>Type</key>
-			<string>PSTextFieldSpecifier</string>
-			<key>AutocapitalizationType</key>
-			<string>None</string>
-			<key>AutocorrectionType</key>
-			<string>No</string>
-			<key>KeyboardType</key>
-			<string>NumberPad</string>
-			<key>DefaultValue</key>
-			<integer>600</integer>
-			<key>IASKTextAlignment</key>
-			<string>IASKUITextAlignmentRight</string>
 		</dict>
 		<dict>
 			<key>Title</key>

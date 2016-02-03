@@ -19,6 +19,7 @@
 
 #import "UIVideoButton.h"
 #include "LinphoneManager.h"
+#import "Utils.h"
 
 @implementation UIVideoButton {
 	BOOL last_update_state;
@@ -26,51 +27,27 @@
 
 @synthesize waitView;
 
-- (void)initUIVideoButton {
+INIT_WITH_COMMON_CF {
 	last_update_state = FALSE;
-}
-
-- (id)init {
-	self = [super init];
-	if (self) {
-		[self initUIVideoButton];
-	}
-	return self;
-}
-
-- (id)initWithCoder:(NSCoder *)decoder {
-	self = [super initWithCoder:decoder];
-	if (self) {
-		[self initUIVideoButton];
-	}
-	return self;
-}
-
-- (id)initWithFrame:(CGRect)frame {
-	self = [super initWithFrame:frame];
-	if (self) {
-		[self initUIVideoButton];
-	}
 	return self;
 }
 
 - (void)onOn {
-	LinphoneCore *lc = [LinphoneManager getLc];
 
-	if (!linphone_core_video_enabled(lc))
+	if (!linphone_core_video_display_enabled(LC))
 		return;
 
 	[self setEnabled:FALSE];
 	[waitView startAnimating];
 
-	LinphoneCall *call = linphone_core_get_current_call([LinphoneManager getLc]);
+	LinphoneCall *call = linphone_core_get_current_call(LC);
 	if (call) {
 		LinphoneCallAppData *callAppData = (__bridge LinphoneCallAppData *)linphone_call_get_user_pointer(call);
 		callAppData->videoRequested =
 			TRUE; /* will be used later to notify user if video was not activated because of the linphone core*/
 		LinphoneCallParams *call_params = linphone_call_params_copy(linphone_call_get_current_params(call));
 		linphone_call_params_enable_video(call_params, TRUE);
-		linphone_core_update_call(lc, call, call_params);
+		linphone_core_update_call(LC, call, call_params);
 		linphone_call_params_destroy(call_params);
 	} else {
 		LOGW(@"Cannot toggle video button, because no current call");
@@ -78,19 +55,18 @@
 }
 
 - (void)onOff {
-	LinphoneCore *lc = [LinphoneManager getLc];
 
-	if (!linphone_core_video_enabled(lc))
+	if (!linphone_core_video_display_enabled(LC))
 		return;
 
 	[self setEnabled:FALSE];
 	[waitView startAnimating];
 
-	LinphoneCall *call = linphone_core_get_current_call([LinphoneManager getLc]);
+	LinphoneCall *call = linphone_core_get_current_call(LC);
 	if (call) {
 		LinphoneCallParams *call_params = linphone_call_params_copy(linphone_call_get_current_params(call));
 		linphone_call_params_enable_video(call_params, FALSE);
-		linphone_core_update_call(lc, call, call_params);
+		linphone_core_update_call(LC, call, call_params);
 		linphone_call_params_destroy(call_params);
 	} else {
 		LOGW(@"Cannot toggle video button, because no current call");
@@ -99,10 +75,9 @@
 
 - (bool)onUpdate {
 	bool video_enabled = false;
-	LinphoneCore *lc = [LinphoneManager getLc];
-	LinphoneCall *currentCall = linphone_core_get_current_call(lc);
-	if (linphone_core_video_supported(lc)) {
-		if (linphone_core_video_enabled(lc) && currentCall && !linphone_call_media_in_progress(currentCall) &&
+	LinphoneCall *currentCall = linphone_core_get_current_call(LC);
+	if (linphone_core_video_supported(LC)) {
+		if (linphone_core_video_display_enabled(LC) && currentCall && !linphone_call_media_in_progress(currentCall) &&
 			linphone_call_get_state(currentCall) == LinphoneCallStreamsRunning) {
 			video_enabled = TRUE;
 		}

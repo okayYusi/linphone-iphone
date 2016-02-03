@@ -12,10 +12,29 @@ Here's how to launch Linphone for iPhone (more details below):
 2. Install [HomeBrew, a package manager for OS X](http://brew.sh) (MacPorts is supported but deprecated).
 3. Install Linphone dependencies: open iTerm.app in the current directory and list dependencies to install using:
  `./prepare.py`
-4. Build SDK (see below for options and explanations):
+4. Reorder your path so that brew tools are used instead of Apple's ones which are obsolete:
+ `export PATH=/usr/local/bin:$PATH`
+5. Build SDK (see below for options and explanations):
  `./prepare.py -c && ./prepare.py && make`
-5. Open linphone.xcodeproj in Xcode: `open linphone.xcodeproj`
-6. Press `⌘R` and voilà!
+6. Open linphone.xcodeproj in Xcode: `open linphone.xcodeproj`
+7. Press `⌘R` and voilà!
+
+# How can I contribute?
+
+Thanks for asking! We love pull requests from everyone. Depending on what you want to do, you can help us improve Linphone in
+various ways:
+
+## Help on translations
+
+<a target="_blank" style="text-decoration:none; color:black; font-size:66%" href="https://www.transifex.com/belledonne-communications/linphone-ios/"
+title="See more information on Transifex.com">Top translations: linphone-ios</a><br/>
+<img border="0" src="https://transifex.com/projects/p/linphone-ios/resource/localizablestrings/chart/image_png"/><br/><a target="_blank" href="/"><img border="0" src="https://ds0k0en9abmn1.cloudfront.net/static/charts/images/tx-logo-micro.646b0065fce6.png"/></a>
+
+Interested in helping translate Linphone? Contribute [on Transifex](https://www.transifex.com/belledonne-communications/linphone-ios).
+
+## Report bugs and submit patchs
+
+If you want to dig through Linphone code or report a bug, please read CONTRIBUTING.md first. You should also read this README entirely ;-).
 
 # Building the SDK
 
@@ -36,7 +55,7 @@ This SDK can be generated in 2 flavors:
 * NO GPL third parties means that Linphone will only use non GPL code except for `liblinphone`, `mediastreamer2`, `oRTP` and `belle-sip`. If you choose this flavor, your final application is **still subject to GPL except if you have a [commercial license for the mentioned libraries](http://www.belledonne-communications.com/products.html)**.
  To generate the liblinphone multi arch SDK without GPL third parties, invoke:
 
-        ./prepare.py --disable-gpl-third-parties=no [other options] && make
+        ./prepare.py --disable-gpl-third-parties [other options] && make
 
 ## Customizing features
 
@@ -113,19 +132,19 @@ MainStoryboard
         |
         | (mainViewController)
         |
-    UICompositeViewController : TPMultilayout
+    UICompositeView : TPMultilayout
                 |
-                #---> view  #--> stateBar
+                #---> view  #--> statusBar
                             |
                             #--> contentView
                             |
                             #--> tabBar
 
 
-When the application is started, the phoneMainView gets asked to transition to the Dialer view or the Wizard view.
+When the application is started, the phoneMainView gets asked to transition to the Dialer view or the Assistant view.
 PhoneMainView exposes the -changeCurrentView: method, which will setup its
-Any Linphone view is actually presented in the UICompositeViewController, with or without a stateBar and tabBar.
+Any Linphone view is actually presented in the UICompositeView, with or without a statusBar and tabBar.
 
-The UICompositeViewController consists of 3 areas laid out vertically. From top to bottom: StateBar, Content and TabBar.
+The UICompositeView consists of 3 areas laid out vertically. From top to bottom: StatusBar, Content and TabBar.
 The TabBar is usually the UIMainBar, which is used as a navigation controller: clicking on each of the buttons will trigger
 a transition to another "view".

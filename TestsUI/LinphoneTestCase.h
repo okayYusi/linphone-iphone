@@ -9,6 +9,9 @@
 #import <KIF/KIF.h>
 #import <KIF/UIApplication-KIFAdditions.h>
 
+#import "Utils.h"
+#import "Log.h"
+
 @interface LinphoneTestCase : KIFTestCase
 @property BOOL invalidAccountSet;
 

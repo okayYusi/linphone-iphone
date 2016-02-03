@@ -46,7 +46,7 @@ hiddenKeys = _hiddenKeys;
 		[self setSettingsBundle:[NSDictionary dictionaryWithContentsOfFile:self.path]];
 		self.bundlePath = [self.path stringByDeletingLastPathComponent];
 		_bundle = [NSBundle bundleWithPath:[self bundlePath]];
-		
+
 		// Look for localization file
 		self.localizationTable = [self.settingsBundle objectForKey:@"StringsTable"];
 		if (!self.localizationTable)
@@ -76,15 +76,14 @@ hiddenKeys = _hiddenKeys;
 	_settingsBundle = nil;
 	_dataSource = nil;
 	_bundle = nil;
-    _hiddenKeys = nil;
-
+	_hiddenKeys = nil;
 }
 
 
 - (void)setHiddenKeys:(NSSet *)anHiddenKeys {
 	if (_hiddenKeys != anHiddenKeys) {
 		_hiddenKeys = anHiddenKeys;
-		
+
 		if (_settingsBundle) {
 			[self _reinterpretBundle:_settingsBundle];
 		}
@@ -95,8 +94,8 @@ hiddenKeys = _hiddenKeys;
 - (void)_reinterpretBundle:(NSDictionary*)settingsBundle {
 	NSArray *preferenceSpecifiers	= [settingsBundle objectForKey:kIASKPreferenceSpecifiers];
 	NSInteger sectionCount			= -1;
-	NSMutableArray *dataSource		= [[NSMutableArray alloc] init];
-	
+	NSMutableArray *dataSource = [[NSMutableArray alloc] init];
+
 	for (NSDictionary *specifier in preferenceSpecifiers) {
 		if ([self.hiddenKeys containsObject:[specifier objectForKey:kIASKKey]]) {
 			continue;

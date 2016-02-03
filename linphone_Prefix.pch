@@ -7,11 +7,12 @@
     #import <UIKit/UIKit.h>
 #endif
 
-#ifdef __IPHONE_8_0
-// suppress these errors until we are ready to handle them
-#pragma clang diagnostic ignored "-Wobjc-designated-initializers"
-#else
-// temporarily define an empty NS_DESIGNATED_INITIALIZER so we can use now,
-// will be ready for iOS8 SDK
-#define NS_DESIGNATED_INITIALIZER
-#endif
+#import "Log.h"
+#import "Utils.h"
+
+#import "UIToggleButton.h"
+#import "UISpeakerButton.h"
+#import "UIBluetoothButton.h"
+#import "UIMicroButton.h"
+
+#import "UIChatBubbleTextCell.h"

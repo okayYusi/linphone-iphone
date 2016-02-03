@@ -16,10 +16,10 @@
 
 @interface DCRoundSwitch () <UIGestureRecognizerDelegate>
 
-@property (nonatomic, strong) DCRoundSwitchOutlineLayer *outlineLayer;
-@property (nonatomic, strong) DCRoundSwitchToggleLayer *toggleLayer;
-@property (nonatomic, strong) DCRoundSwitchKnobLayer *knobLayer;
-@property (nonatomic, strong) CAShapeLayer *clipLayer;
+@property(nonatomic, strong) DCRoundSwitchOutlineLayer *outlineLayer;
+@property(nonatomic, strong) DCRoundSwitchToggleLayer *toggleLayer;
+@property(nonatomic, strong) DCRoundSwitchKnobLayer *knobLayer;
+@property(nonatomic, strong) CAShapeLayer *clipLayer;
 @property (nonatomic, assign) BOOL ignoreTap;
 
 - (void)setup;
@@ -116,7 +116,10 @@
 	// this is the knob, and sits on top of the layer stack. note that the knob shadow is NOT drawn here, it is drawn on the
 	// toggleLayer so it doesn't bleed out over the outlineLayer.
 
-	self.toggleLayer = [[[[self class] toggleLayerClass] alloc] initWithOnString:self.onText offString:self.offText onTintColor:[UIColor colorWithRed:0.000 green:0.478 blue:0.882 alpha:1.0]];
+	self.toggleLayer = [[[[self class] toggleLayerClass] alloc]
+		initWithOnString:self.onText
+			   offString:self.offText
+			 onTintColor:[UIColor colorWithRed:0.000 green:0.478 blue:0.882 alpha:1.0]];
 	self.toggleLayer.drawOnTint = NO;
 	self.toggleLayer.clip = YES;
 	[self.layer addSublayer:self.toggleLayer];
@@ -133,14 +136,14 @@
 	self.toggleLayer.contentsScale = self.outlineLayer.contentsScale = self.knobLayer.contentsScale = [[UIScreen mainScreen] scale];
 
 	// tap gesture for toggling the switch
-	UITapGestureRecognizer *tapGestureRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self 
-																						   action:@selector(tapped:)];
+	UITapGestureRecognizer *tapGestureRecognizer =
+		[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped:)];
 	[tapGestureRecognizer setDelegate:self];
 	[self addGestureRecognizer:tapGestureRecognizer];
 
 	// pan gesture for moving the switch knob manually
-	UIPanGestureRecognizer *panGestureRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self
-																				 action:@selector(toggleDragged:)];
+	UIPanGestureRecognizer *panGestureRecognizer =
+		[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(toggleDragged:)];
 	[panGestureRecognizer setDelegate:self];
 	[self addGestureRecognizer:panGestureRecognizer];
 

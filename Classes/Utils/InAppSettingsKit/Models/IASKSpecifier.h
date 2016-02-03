@@ -24,8 +24,8 @@
     NSDictionary    *_multipleValuesDict;
 	IASKSettingsReader *__weak _settingsReader;
 }
-@property (nonatomic, strong) NSDictionary  *specifierDict;
-@property (nonatomic, weak) IASKSettingsReader *settingsReader;
+@property(nonatomic, strong) NSDictionary *specifierDict;
+@property(nonatomic, weak) IASKSettingsReader *settingsReader;
 
 - (id)initWithSpecifier:(NSDictionary*)specifier;
 - (NSString*)localizedObjectForKey:(NSString*)key;

@@ -49,10 +49,10 @@
 - (void)dealloc {
 	webView = nil;
 	url = nil;
-	
 }
 
-- (void)viewWillAppear:(BOOL)animated {  
+- (void)viewWillAppear:(BOOL)animated {
+	[super viewWillAppear:animated];
 	[webView loadRequest:[NSURLRequest requestWithURL:self.url]];
 }
 
@@ -100,12 +100,10 @@
 				}
 				NSString *key = [[keyValue objectAtIndex:0] lowercaseString];
 				NSString *value = [keyValue objectAtIndex:1];
-				
-				value =  (NSString *)CFBridgingRelease(CFURLCreateStringByReplacingPercentEscapesUsingEncoding(kCFAllocatorDefault,
-																							 (CFStringRef)value,
-																							 CFSTR(""),
-																							 kCFStringEncodingUTF8));
-				
+
+				value = (NSString *)CFBridgingRelease(CFURLCreateStringByReplacingPercentEscapesUsingEncoding(
+					kCFAllocatorDefault, (CFStringRef)value, CFSTR(""), kCFStringEncodingUTF8));
+
 				if ([key isEqualToString:@"subject"]) {
 					[mailViewController setSubject:value];
 				}

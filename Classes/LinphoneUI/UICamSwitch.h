@@ -19,9 +19,10 @@
 
 #import <UIKit/UIKit.h>
 
+#import "UIIconButton.h"
 
-@interface UICamSwitch : UIButton
+@interface UICamSwitch : UIIconButton
 
-@property (nonatomic, weak) IBOutlet UIView* preview;
+@property(nonatomic, weak) IBOutlet UIView *preview;
 
 @end

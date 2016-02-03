@@ -105,7 +105,7 @@
 }
 
 - (void)viewDidUnload {
-    [super viewDidUnload];
+	[super viewDidUnload];
 	// Release any retained subviews of the main view.
 	// e.g. self.myOutlet = nil;
 	self.tableView = nil;
@@ -113,10 +113,10 @@
 
 
 - (void)dealloc {
-    _currentSpecifier = nil;
+	_currentSpecifier = nil;
 	_checkedItem = nil;
 	_settingsReader = nil;
-    _settingsStore = nil;
+	_settingsStore = nil;
 	_tableView = nil;
 }
 
@@ -151,9 +151,9 @@
     NSArray *titles         = [_currentSpecifier multipleTitles];
 	
     if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:kCellValue];
-    }
-	
+		cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:kCellValue];
+	}
+
 	if ([indexPath isEqual:[self checkedItem]]) {
 		[self selectCell:cell];
     } else {

@@ -1,4 +1,5 @@
 language: objective-c
+osx_image: xcode7.2
 
 env:
     global:
@@ -7,13 +8,11 @@ env:
 
 before_install:
     - brew update 1>/dev/null
-    - brew install doxygen nasm yasm optipng imagemagick coreutils intltool ninja antlr
-    - brew upgrade cmake
-    - wget --no-check-certificate https://raw.github.com/yuvi/gas-preprocessor/master/gas-preprocessor.pl
+    - brew install doxygen nasm yasm optipng imagemagick intltool ninja antlr cmake
+    - wget --no-check-certificate https://raw.githubusercontent.com/FFmpeg/gas-preprocessor/master/gas-preprocessor.pl
     - chmod +x gas-preprocessor.pl
     - sudo mv gas-preprocessor.pl /usr/local/bin
     - sudo ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
-    - sudo ln -s /usr/bin/strings /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/bin/strings
     - git submodule update --init --recursive
 
 install:

@@ -19,50 +19,23 @@
 
 #import "UICamSwitch.h"
 #include "LinphoneManager.h"
+#import "Utils.h"
 
 @implementation UICamSwitch
 @synthesize preview;
 
 #pragma mark - Lifecycle Functions
 
-- (id)initUICamSwitch {
+INIT_WITH_COMMON_CF {
 	[self addTarget:self action:@selector(touchUp:) forControlEvents:UIControlEventTouchUpInside];
-	return self;
-}
-
-- (id)init {
-	self = [super init];
-	if (self) {
-		if (!(self = [self initUICamSwitch]))
-			return nil;
-	}
-	return self;
-}
-
-- (id)initWithFrame:(CGRect)frame {
-
-	self = [super initWithFrame:frame];
-	if (self) {
-		if (!(self = [self initUICamSwitch]))
-			return nil;
-	}
-	return self;
-}
-
-- (id)initWithCoder:(NSCoder *)decoder {
-	self = [super initWithCoder:decoder];
-	if (self) {
-		if (!(self = [self initUICamSwitch]))
-			return nil;
-	}
 	return self;
 }
 
 #pragma mark -
 
 - (void)touchUp:(id)sender {
-	const char *currentCamId = (char *)linphone_core_get_video_device([LinphoneManager getLc]);
-	const char **cameras = linphone_core_get_video_devices([LinphoneManager getLc]);
+	const char *currentCamId = (char *)linphone_core_get_video_device(LC);
+	const char **cameras = linphone_core_get_video_devices(LC);
 	const char *newCamId = NULL;
 	int i;
 
@@ -76,10 +49,10 @@
 	}
 	if (newCamId) {
 		LOGI(@"Switching from [%s] to [%s]", currentCamId, newCamId);
-		linphone_core_set_video_device([LinphoneManager getLc], newCamId);
-		LinphoneCall *call = linphone_core_get_current_call([LinphoneManager getLc]);
+		linphone_core_set_video_device(LC, newCamId);
+		LinphoneCall *call = linphone_core_get_current_call(LC);
 		if (call != NULL) {
-			linphone_core_update_call([LinphoneManager getLc], call, NULL);
+			linphone_core_update_call(LC, call, NULL);
 		}
 	}
 }

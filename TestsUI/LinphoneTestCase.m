@@ -11,6 +11,8 @@
 #import "LinphoneManager.h"
 
 #import "KIF/KIFTypist.h"
+#import "Log.h"
+#import "Utils.h"
 
 @implementation LinphoneTestCase
 
@@ -33,6 +35,9 @@
 		[tester waitForTimeInterval:.5f];
 	};
 #endif
+	// remove any account
+	[LinphoneManager.instance removeAllAccounts];
+
 	// go to dialer
 	for (NSString *button in @[ @"Cancel", @"Back", @"Hangup", @"Dialer" ]) {
 		if ([tester tryFindingTappableViewWithAccessibilityLabel:button error:nil]) {
@@ -46,8 +51,9 @@
 }
 
 - (NSString *)me {
-	return [NSString
-		stringWithFormat:@"testios-%@", [[UIDevice currentDevice].identifierForVendor.UUIDString substringToIndex:6]];
+	return [NSString stringWithFormat:@"testios-%@",
+									  [[UIDevice currentDevice].identifierForVendor.UUIDString substringToIndex:6]]
+		.lowercaseString;
 }
 
 - (NSString *)accountDomain {
@@ -55,7 +61,7 @@
 }
 
 - (NSString *)getUUID {
-	return [[[NSUUID UUID] UUIDString] substringToIndex:8];
+	return [[[NSUUID UUID] UUIDString] substringToIndex:8].lowercaseString;
 }
 
 - (NSArray *)getUUIDArrayOfSize:(size_t)size {
@@ -73,18 +79,14 @@
 	while (proxies) {
 		LinphoneProxyConfig *cfg = (LinphoneProxyConfig *)proxies->data;
 		const char *domain = linphone_proxy_config_get_domain(cfg);
-		const char *identity = linphone_proxy_config_get_identity(cfg);
-		LinphoneAddress *addr = linphone_core_interpret_url(lc, identity);
+		const LinphoneAddress *addr = linphone_proxy_config_get_identity_address(cfg);
 		const char *username = linphone_address_get_username(addr);
 
 		if (addr && (username && strcmp(username, [[self me] UTF8String]) == 0) &&
 			(domain && strcmp(domain, [[self accountDomain] UTF8String]) == 0) &&
 			linphone_proxy_config_get_state(cfg) == LinphoneRegistrationOk) {
 			isOK = true;
-			linphone_address_destroy(addr);
 			break;
-		} else if (addr) {
-			linphone_address_destroy(addr);
 		}
 
 		proxies = proxies->next;
@@ -102,8 +104,8 @@
 		linphone_core_clear_proxy_config(lc);
 		linphone_core_clear_all_auth_info(lc);
 
-		LinphoneAddress *testAddr = linphone_address_new(
-			[[NSString stringWithFormat:@"sip:%@@%@", [self me], [self accountDomain]] UTF8String]);
+		LinphoneAddress *testAddr = linphone_core_interpret_url(
+			LC, [[NSString stringWithFormat:@"sip:%@@%@", [self me], [self accountDomain]] UTF8String]);
 		linphone_address_set_header(testAddr, "X-Create-Account", "yes");
 		linphone_address_set_transport(testAddr, LinphoneTransportTcp);
 		linphone_address_set_port(testAddr, 0);
@@ -158,14 +160,14 @@
 	while (timeout &&
 		   ![tester tryFindingViewWithAccessibilityLabel:@"Registration state"
 												   value:@"Registered"
-												  traits:UIAccessibilityTraitStaticText
+												  traits:UIAccessibilityTraitButton
 												   error:nil]) {
 		[tester waitForTimeInterval:1];
 		timeout--;
 	}
 	[tester waitForViewWithAccessibilityLabel:@"Registration state"
 										value:@"Registered"
-									   traits:UIAccessibilityTraitStaticText];
+									   traits:UIAccessibilityTraitButton];
 }
 
 @end

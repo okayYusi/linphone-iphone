@@ -17,64 +17,119 @@
  *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#import "Utils.h"
-#include "linphone/linphonecore.h"
+#import <UIKit/UIView.h>
 #import <CommonCrypto/CommonDigest.h>
 #import <sys/utsname.h>
+#import <AssetsLibrary/ALAsset.h>
 
-@implementation LinphoneLogger
-
-+ (void)log:(OrtpLogLevel)severity file:(const char *)file line:(int)line format:(NSString *)format, ... {
-	va_list args;
-	va_start(args, format);
-	NSString *str = [[NSString alloc] initWithFormat:format arguments:args];
-	const char *utf8str = [str cStringUsingEncoding:NSString.defaultCStringEncoding];
-	int filesize = 20;
-	const char *filename = strchr(file, '/') ? strrchr(file, '/') + 1 : file;
-	if (severity <= ORTP_DEBUG) {
-		// lol: ortp_debug(XXX) can be disabled at compile time, but ortp_log(ORTP_DEBUG, xxx) will always be valid even
-		//      not in debug build...
-		ortp_debug("%*s:%3d - %s", filesize, filename + MAX((int)strlen(filename) - filesize, 0), line, utf8str);
-	} else {
-		ortp_log(severity, "%*s:%3d - %s", filesize, filename + MAX((int)strlen(filename) - filesize, 0), line,
-				 utf8str);
-	}
-	va_end(args);
-}
-
-#pragma mark - Logs Functions callbacks
-
-void linphone_iphone_log_handler(int lev, const char *fmt, va_list args) {
-	NSString *format = [[NSString alloc] initWithUTF8String:fmt];
-	NSString *formatedString = [[NSString alloc] initWithFormat:format arguments:args];
-	char levelC = 'I';
-	switch ((OrtpLogLevel)lev) {
-	case ORTP_FATAL:
-		levelC = 'F';
-		break;
-	case ORTP_ERROR:
-		levelC = 'E';
-		break;
-	case ORTP_WARNING:
-		levelC = 'W';
-		break;
-	case ORTP_MESSAGE:
-		levelC = 'I';
-		break;
-	case ORTP_TRACE:
-	case ORTP_DEBUG:
-		levelC = 'D';
-		break;
-	case ORTP_LOGLEV_END:
-		return;
-	}
-	// since \r are interpreted like \n, avoid double new lines when logging packets
-	NSLog(@"%c %@", levelC, [formatedString stringByReplacingOccurrencesOfString:@"\r\n" withString:@"\n"]);
-}
-
-@end
+#import "Utils.h"
+#import "linphone/linphonecore.h"
+#import "UILabel+Boldify.h"
+#import "FastAddressBook.h"
+#import "ColorSpaceUtilities.h"
 
 @implementation LinphoneUtils
+
++ (BOOL)hasSelfAvatar {
+	return [NSURL URLWithString:[LinphoneManager.instance lpConfigStringForKey:@"avatar"]] != nil;
+}
++ (UIImage *)selfAvatar {
+	NSURL *url = [NSURL URLWithString:[LinphoneManager.instance lpConfigStringForKey:@"avatar"]];
+	__block UIImage *ret = nil;
+	if (url) {
+		__block NSConditionLock *photoLock = [[NSConditionLock alloc] initWithCondition:1];
+		// load avatar synchronously so that we can return UIIMage* directly - since we are
+		// only using thumbnail, it must be pretty fast to fetch even without cache.
+		dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+		  [LinphoneManager.instance.photoLibrary assetForURL:url
+			  resultBlock:^(ALAsset *asset) {
+				ret = [[UIImage alloc] initWithCGImage:[asset thumbnail]];
+				[photoLock lock];
+				[photoLock unlockWithCondition:0];
+			  }
+			  failureBlock:^(NSError *error) {
+				LOGE(@"Can't read avatar");
+				[photoLock lock];
+				[photoLock unlockWithCondition:0];
+			  }];
+		});
+		[photoLock lockWhenCondition:0];
+		[photoLock unlock];
+	}
+
+	if (!ret) {
+		ret = [UIImage imageNamed:@"avatar.png"];
+	}
+	return ret;
+}
+
++ (NSString *)durationToString:(int)duration {
+	NSMutableString *result = [[NSMutableString alloc] init];
+	if (duration / 3600 > 0) {
+		[result appendString:[NSString stringWithFormat:@"%02i:", duration / 3600]];
+		duration = duration % 3600;
+	}
+	return [result stringByAppendingString:[NSString stringWithFormat:@"%02i:%02i", (duration / 60), (duration % 60)]];
+}
+
++ (NSString *)timeToString:(time_t)time withFormat:(LinphoneDateFormat)format {
+	NSString *formatstr;
+	NSDate *todayDate = [[NSDate alloc] init];
+	NSDate *messageDate = (time == 0) ? todayDate : [NSDate dateWithTimeIntervalSince1970:time];
+	NSDateComponents *todayComponents =
+		[[NSCalendar currentCalendar] components:NSCalendarUnitDay | NSCalendarUnitMonth | NSCalendarUnitYear
+										fromDate:todayDate];
+	NSDateComponents *dateComponents =
+		[[NSCalendar currentCalendar] components:NSCalendarUnitDay | NSCalendarUnitMonth | NSCalendarUnitYear
+										fromDate:messageDate];
+	BOOL sameYear = (todayComponents.year == dateComponents.year);
+	BOOL sameMonth = (sameYear && (todayComponents.month == dateComponents.month));
+	BOOL sameDay = (sameMonth && (todayComponents.day == dateComponents.day));
+
+	switch (format) {
+		case LinphoneDateHistoryList:
+			if (sameYear) {
+				formatstr = NSLocalizedString(@"EEE dd MMMM",
+											  @"Date formatting in History List, for current year (also see "
+											  @"http://cybersam.com/ios-dev/quick-guide-to-ios-dateformatting)");
+			} else {
+				formatstr = NSLocalizedString(@"EEE dd MMMM yyyy",
+											  @"Date formatting in History List, for previous years (also see "
+											  @"http://cybersam.com/ios-dev/quick-guide-to-ios-dateformatting)");
+			}
+			break;
+		case LinphoneDateHistoryDetails:
+			formatstr = NSLocalizedString(@"EEE dd MMM 'at' HH'h'mm", @"Date formatting in History Details (also see "
+																	  @"http://cybersam.com/ios-dev/"
+																	  @"quick-guide-to-ios-dateformatting)");
+			break;
+		case LinphoneDateChatList:
+			if (sameDay) {
+				formatstr = NSLocalizedString(
+					@"HH:mm", @"Date formatting in Chat List and Conversation bubbles, for current day (also see "
+							  @"http://cybersam.com/ios-dev/quick-guide-to-ios-dateformatting)");
+			} else {
+				formatstr =
+					NSLocalizedString(@"MM/dd", @"Date formatting in Chat List, for all but current day (also see "
+												@"http://cybersam.com/ios-dev/quick-guide-to-ios-dateformatting)");
+			}
+			break;
+		case LinphoneDateChatBubble:
+			if (sameDay) {
+				formatstr = NSLocalizedString(
+					@"HH:mm", @"Date formatting in Chat List and Conversation bubbles, for current day (also see "
+							  @"http://cybersam.com/ios-dev/quick-guide-to-ios-dateformatting)");
+			} else {
+				formatstr = NSLocalizedString(@"MM/dd - HH:mm",
+											  @"Date formatting in Conversation bubbles, for all but current day (also "
+											  @"see http://cybersam.com/ios-dev/quick-guide-to-ios-dateformatting)");
+			}
+			break;
+	}
+	NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+	[dateFormatter setDateFormat:formatstr];
+	return [dateFormatter stringFromDate:messageDate];
+}
 
 + (BOOL)findAndResignFirstResponder:(UIView *)view {
 	if (view.isFirstResponder) {
@@ -109,37 +164,13 @@ void linphone_iphone_log_handler(int lev, const char *fmt, va_list args) {
 }
 
 + (void)buttonFixStates:(UIButton *)button {
-	// Set selected+over title: IB lack !
+	// Interface builder lack fixes
 	[button setTitle:[button titleForState:UIControlStateSelected]
 			forState:(UIControlStateHighlighted | UIControlStateSelected)];
-
-	// Set selected+over titleColor: IB lack !
 	[button setTitleColor:[button titleColorForState:UIControlStateHighlighted]
 				 forState:(UIControlStateHighlighted | UIControlStateSelected)];
-
-	// Set selected+disabled title: IB lack !
 	[button setTitle:[button titleForState:UIControlStateSelected]
 			forState:(UIControlStateDisabled | UIControlStateSelected)];
-
-	// Set selected+disabled titleColor: IB lack !
-	[button setTitleColor:[button titleColorForState:UIControlStateDisabled]
-				 forState:(UIControlStateDisabled | UIControlStateSelected)];
-}
-
-+ (void)buttonFixStatesForTabs:(UIButton *)button {
-	// Set selected+over title: IB lack !
-	[button setTitle:[button titleForState:UIControlStateSelected]
-			forState:(UIControlStateHighlighted | UIControlStateSelected)];
-
-	// Set selected+over titleColor: IB lack !
-	[button setTitleColor:[button titleColorForState:UIControlStateSelected]
-				 forState:(UIControlStateHighlighted | UIControlStateSelected)];
-
-	// Set selected+disabled title: IB lack !
-	[button setTitle:[button titleForState:UIControlStateSelected]
-			forState:(UIControlStateDisabled | UIControlStateSelected)];
-
-	// Set selected+disabled titleColor: IB lack !
 	[button setTitleColor:[button titleColorForState:UIControlStateDisabled]
 				 forState:(UIControlStateDisabled | UIControlStateSelected)];
 }
@@ -341,6 +372,191 @@ void linphone_iphone_log_handler(int lev, const char *fmt, va_list args) {
 	}
 
 	return output;
+}
+
+@end
+
+@implementation ContactDisplay
+
++ (void)setDisplayNameLabel:(UILabel *)label forContact:(ABRecordRef)contact {
+	label.text = [FastAddressBook displayNameForContact:contact];
+#if 0
+	NSString *lLastName = CFBridgingRelease(ABRecordCopyValue(contact, kABPersonLastNameProperty));
+	NSString *lLocalizedLastName = [FastAddressBook localizedLabel:lLastName];
+	if (lLocalizedLastName) {
+		[label boldSubstring:lLocalizedLastName];
+	}
+#endif
+}
+
++ (void)setDisplayNameLabel:(UILabel *)label forAddress:(const LinphoneAddress *)addr {
+	const LinphoneFriend *contact = [FastAddressBook getContactWithAddress:addr];
+	if (contact) {
+		[ContactDisplay setDisplayNameLabel:label forContact:contact];
+	} else {
+		label.text = [FastAddressBook displayNameForAddress:addr];
+	}
+}
+
+@end
+
+@implementation UIImage (squareCrop)
+
+- (UIImage *)squareCrop {
+	// This calculates the crop area.
+
+	size_t originalWidth = CGImageGetWidth(self.CGImage);
+	size_t originalHeight = CGImageGetHeight(self.CGImage);
+
+	size_t edge = MIN(originalWidth, originalHeight);
+
+	float posX = (originalWidth - edge) / 2.0f;
+	float posY = (originalHeight - edge) / 2.0f;
+
+	CGRect rect = CGRectMake(posX, posY, edge, edge);
+
+	// Create bitmap image from original image data,
+	// using rectangle to specify desired crop area
+	CGImageRef imageRef = CGImageCreateWithImageInRect([self CGImage], rect);
+	UIImage *img = [UIImage imageWithCGImage:imageRef];
+	CGImageRelease(imageRef);
+
+	return img; /*
+	 UIImage *ret = nil;
+
+
+
+	 CGRect cropSquare = CGRectMake(posX, posY, edge, edge);
+
+ //	CGImageRef imageRef = CGImageCreateWithImageInRect([self CGImage], cropSquare);
+ //	ret = [UIImage imageWithCGImage:imageRef scale:self.scale orientation:self.imageOrientation];
+ //
+ //	CGImageRelease(imageRef);
+
+	 CGImageRef imageRef = CGImageCreateWithImageInRect(self.CGImage, cropSquare);
+	 ret = [UIImage imageWithCGImage:imageRef scale:self.scale orientation:self.imageOrientation];
+	 CGImageRelease(imageRef);
+
+
+	 return ret;*/
+}
+
+- (UIImage *)scaleToSize:(CGSize)size squared:(BOOL)squared {
+	UIImage *scaledImage = self;
+	if (squared) {
+		//		scaledImage = [self squareCrop];
+		size.width = size.height = MAX(size.width, size.height);
+	}
+
+	UIGraphicsBeginImageContext(size);
+
+	[scaledImage drawInRect:CGRectMake(0, 0, size.width, size.height)];
+	scaledImage = UIGraphicsGetImageFromCurrentImageContext();
+	UIGraphicsEndImageContext();
+
+	return scaledImage;
+}
+
+@end
+
+@implementation UIColor (LightAndDark)
+
+- (UIColor *)lumColor:(float)mult {
+	float hsbH, hsbS, hsbB;
+	float rgbaR, rgbaG, rgbaB, rgbaA;
+
+	// Get RGB
+	CGColorRef cgColor = [self CGColor];
+	CGColorSpaceRef cgColorSpace = CGColorGetColorSpace(cgColor);
+	if (CGColorSpaceGetModel(cgColorSpace) != kCGColorSpaceModelRGB) {
+		LOGW(@"Can't convert not RGB color");
+		return self;
+	} else {
+		const CGFloat *colors = CGColorGetComponents(cgColor);
+		rgbaR = colors[0];
+		rgbaG = colors[1];
+		rgbaB = colors[2];
+		rgbaA = CGColorGetAlpha(cgColor);
+	}
+
+	RGB2HSL(rgbaR, rgbaG, rgbaB, &hsbH, &hsbS, &hsbB);
+
+	hsbB = MIN(MAX(hsbB * mult, 0.0), 1.0);
+
+	HSL2RGB(hsbH, hsbS, hsbB, &rgbaR, &rgbaG, &rgbaB);
+
+	return [UIColor colorWithRed:rgbaR green:rgbaG blue:rgbaB alpha:rgbaA];
+}
+
+- (UIColor *)adjustHue:(float)hm saturation:(float)sm brightness:(float)bm alpha:(float)am {
+	float hsbH, hsbS, hsbB;
+	float rgbaR, rgbaG, rgbaB, rgbaA;
+
+	// Get RGB
+	CGColorRef cgColor = [self CGColor];
+	CGColorSpaceRef cgColorSpace = CGColorGetColorSpace(cgColor);
+	if (CGColorSpaceGetModel(cgColorSpace) != kCGColorSpaceModelRGB) {
+		LOGW(@"Can't convert not RGB color");
+		return self;
+	} else {
+		const CGFloat *colors = CGColorGetComponents(cgColor);
+		rgbaR = colors[0];
+		rgbaG = colors[1];
+		rgbaB = colors[2];
+		rgbaA = CGColorGetAlpha(cgColor);
+	}
+
+	RGB2HSL(rgbaR, rgbaG, rgbaB, &hsbH, &hsbS, &hsbB);
+
+	hsbH = MIN(MAX(hsbH + hm, 0.0), 1.0);
+	hsbS = MIN(MAX(hsbS + sm, 0.0), 1.0);
+	hsbB = MIN(MAX(hsbB + bm, 0.0), 1.0);
+	rgbaA = MIN(MAX(rgbaA + am, 0.0), 1.0);
+
+	HSL2RGB(hsbH, hsbS, hsbB, &rgbaR, &rgbaG, &rgbaB);
+
+	return [UIColor colorWithRed:rgbaR green:rgbaG blue:rgbaB alpha:rgbaA];
+}
+
+- (UIColor *)lighterColor {
+	return [self lumColor:1.3];
+}
+
+- (UIColor *)darkerColor {
+	return [self lumColor:0.75];
+}
+
+@end
+
+@implementation UIImage (ForceDecode)
+
++ (UIImage *)decodedImageWithImage:(UIImage *)image {
+	CGImageRef imageRef = image.CGImage;
+	CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+	CGContextRef context = CGBitmapContextCreate(
+		NULL, CGImageGetWidth(imageRef), CGImageGetHeight(imageRef), 8,
+		// Just always return width * 4 will be enough
+		CGImageGetWidth(imageRef) * 4,
+		// System only supports RGB, set explicitly
+		colorSpace,
+		// Makes system don't need to do extra conversion when displayed.
+		// NOTE: here we remove the alpha channel for performance. Most of the time, images loaded
+		//       from the network are jpeg with no alpha channel. As a TODO, finding a way to detect
+		//       if alpha channel is necessary would be nice.
+		kCGImageAlphaNoneSkipLast | kCGBitmapByteOrder32Little);
+	CGColorSpaceRelease(colorSpace);
+	if (!context)
+		return nil;
+
+	CGRect rect = (CGRect){CGPointZero, {CGImageGetWidth(imageRef), CGImageGetHeight(imageRef)}};
+	CGContextDrawImage(context, rect, imageRef);
+	CGImageRef decompressedImageRef = CGBitmapContextCreateImage(context);
+	CGContextRelease(context);
+
+	UIImage *decompressedImage =
+		[[UIImage alloc] initWithCGImage:decompressedImageRef scale:image.scale orientation:image.imageOrientation];
+	CGImageRelease(decompressedImageRef);
+	return decompressedImage;
 }
 
 @end

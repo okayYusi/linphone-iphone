@@ -7,6 +7,8 @@
 //
 
 #import "FileTransferDelegate.h"
+#import "Utils.h"
+
 @interface FileTransferDelegate ()
 @property(strong) NSMutableData *data;
 @end
@@ -20,7 +22,7 @@
 }
 
 + (FileTransferDelegate *)messageDelegate:(LinphoneChatMessage *)message {
-	for (FileTransferDelegate *ftd in [[LinphoneManager instance] fileTransferDelegates]) {
+	for (FileTransferDelegate *ftd in [LinphoneManager.instance fileTransferDelegates]) {
 		if (ftd.message == message) {
 			return ftd;
 		}
@@ -45,16 +47,19 @@ static void linphone_iphone_file_transfer_recv(LinphoneChatMessage *message, con
 		UIImage *image = [UIImage imageWithData:thiz.data];
 
 		CFBridgingRetain(thiz);
-		[[[LinphoneManager instance] fileTransferDelegates] removeObject:thiz];
+		[[LinphoneManager.instance fileTransferDelegates] removeObject:thiz];
 
-		[[LinphoneManager instance]
-				.photoLibrary
+		// until image is properly saved, keep a reminder on it so that the
+		// chat bubble is aware of the fact that image is being saved to device
+		[LinphoneManager setValueInMessageAppData:@"saving..." forKey:@"localimage" inMessage:message];
+
+		[LinphoneManager.instance.photoLibrary
 			writeImageToSavedPhotosAlbum:image.CGImage
 							 orientation:(ALAssetOrientation)[image imageOrientation]
 						 completionBlock:^(NSURL *assetURL, NSError *error) {
 						   if (error) {
 							   LOGE(@"Cannot save image data downloaded [%@]", [error localizedDescription]);
-
+							   [LinphoneManager setValueInMessageAppData:nil forKey:@"localimage" inMessage:message];
 							   UIAlertView *errorAlert = [[UIAlertView alloc]
 									   initWithTitle:NSLocalizedString(@"Transfer error", nil)
 											 message:NSLocalizedString(@"Cannot write image to photo library", nil)
@@ -69,23 +74,25 @@ static void linphone_iphone_file_transfer_recv(LinphoneChatMessage *message, con
 															   inMessage:message];
 						   }
 						   thiz.message = NULL;
-						   [[NSNotificationCenter defaultCenter]
+						   [NSNotificationCenter.defaultCenter
 							   postNotificationName:kLinphoneFileTransferRecvUpdate
 											 object:thiz
 										   userInfo:@{
-											   @"state" : @(linphone_chat_message_get_state(message)),
+											   @"state" : @(LinphoneChatMessageStateDelivered), // we dont want to
+																								// trigger
+																								// FileTransferDone here
 											   @"image" : image,
-											   @"progress" :
-												   @([thiz.data length] * 1.f / linphone_content_get_size(content)),
+											   @"progress" : @(1.f),
 										   }];
 
+						   [thiz stopAndDestroy];
 						   CFRelease((__bridge CFTypeRef)thiz);
 						 }];
 	} else {
 		LOGD(@"Transfer of %s (%d bytes): already %ld sent, adding %ld", linphone_content_get_name(content),
 			 linphone_content_get_size(content), [thiz.data length], size);
 		[thiz.data appendBytes:linphone_buffer_get_string_content(buffer) length:size];
-		[[NSNotificationCenter defaultCenter]
+		[NSNotificationCenter.defaultCenter
 			postNotificationName:kLinphoneFileTransferRecvUpdate
 						  object:thiz
 						userInfo:@{
@@ -108,9 +115,9 @@ static LinphoneBuffer *linphone_iphone_file_transfer_send(LinphoneChatMessage *m
 		}];
 		LOGD(@"Transfer of %s (%d bytes): already sent %ld (%f%%), remaining %ld", linphone_content_get_name(content),
 			 total, offset, offset * 100.f / total, remaining);
-		[[NSNotificationCenter defaultCenter] postNotificationName:kLinphoneFileTransferSendUpdate
-															object:thiz
-														  userInfo:dict];
+		[NSNotificationCenter.defaultCenter postNotificationName:kLinphoneFileTransferSendUpdate
+														  object:thiz
+														userInfo:dict];
 
 		LinphoneBuffer *buffer = NULL;
 		@try {
@@ -122,6 +129,7 @@ static LinphoneBuffer *linphone_iphone_file_transfer_send(LinphoneChatMessage *m
 		// this is the last time we will be notified, so destroy ourselve
 		if (remaining <= size) {
 			LOGI(@"Upload ended");
+			linphone_chat_message_cbs_set_file_transfer_send(linphone_chat_message_get_callbacks(thiz.message), NULL);
 			thiz.message = NULL;
 			[thiz stopAndDestroy];
 		}
@@ -137,13 +145,13 @@ static LinphoneBuffer *linphone_iphone_file_transfer_send(LinphoneChatMessage *m
 - (void)upload:(UIImage *)image withURL:(NSURL *)url forChatRoom:(LinphoneChatRoom *)chatRoom {
 	[LinphoneManager.instance.fileTransferDelegates addObject:self];
 
-	LinphoneContent *content = linphone_core_create_content(linphone_chat_room_get_lc(chatRoom));
+	LinphoneContent *content = linphone_core_create_content(linphone_chat_room_get_core(chatRoom));
 	_data = [NSMutableData dataWithData:UIImageJPEGRepresentation(image, 1.0)];
 	linphone_content_set_type(content, "image");
 	linphone_content_set_subtype(content, "jpeg");
-	linphone_content_set_name(content,
-							  [[NSString stringWithFormat:@"%li-%f.jpg", (long)image.hash,
-														  [NSDate timeIntervalSinceReferenceDate]] UTF8String]);
+	linphone_content_set_name(
+		content, [[NSString stringWithFormat:@"%li-%f.jpg", (long)image.hash, [NSDate timeIntervalSinceReferenceDate]]
+					 UTF8String]);
 	linphone_content_set_size(content, _data.length);
 
 	_message = linphone_chat_room_create_file_transfer_message(chatRoom, content);
@@ -163,7 +171,7 @@ static LinphoneBuffer *linphone_iphone_file_transfer_send(LinphoneChatMessage *m
 }
 
 - (BOOL)download:(LinphoneChatMessage *)message {
-	[[[LinphoneManager instance] fileTransferDelegates] addObject:self];
+	[[LinphoneManager.instance fileTransferDelegates] addObject:self];
 
 	_message = message;
 
@@ -182,7 +190,7 @@ static LinphoneBuffer *linphone_iphone_file_transfer_send(LinphoneChatMessage *m
 }
 
 - (void)stopAndDestroy {
-	[[[LinphoneManager instance] fileTransferDelegates] removeObject:self];
+	[[LinphoneManager.instance fileTransferDelegates] removeObject:self];
 	if (_message != NULL) {
 		LinphoneChatMessage *msg = _message;
 		_message = NULL;
@@ -194,7 +202,7 @@ static LinphoneBuffer *linphone_iphone_file_transfer_send(LinphoneChatMessage *m
 		linphone_chat_message_cancel_file_transfer(msg);
 	}
 	_data = nil;
-	LOGI(@"%p Destroying", self);
+	LOGD(@"%p Destroying", self);
 }
 
 - (void)cancel {

@@ -24,24 +24,18 @@
 
 @implementation UIChatCell
 
-@synthesize avatarImage;
-@synthesize addressLabel;
-@synthesize chatContentLabel;
-@synthesize deleteButton;
-@synthesize unreadMessageLabel;
-@synthesize unreadMessageView;
-
 #pragma mark - Lifecycle Functions
 
 - (id)initWithIdentifier:(NSString *)identifier {
 	if ((self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier]) != nil) {
-		NSArray *arrayOfViews = [[NSBundle mainBundle] loadNibNamed:@"UIChatCell" owner:self options:nil];
+		NSArray *arrayOfViews =
+			[[NSBundle mainBundle] loadNibNamed:NSStringFromClass(self.class) owner:self options:nil];
 
-		if ([arrayOfViews count] >= 1) {
-
-			[self.contentView addSubview:[arrayOfViews objectAtIndex:0]];
-		}
-		[chatContentLabel setAdjustsFontSizeToFitWidth:TRUE]; // Auto shrink: IB lack!
+		// resize cell to match .nib size. It is needed when resized the cell to
+		// correctly adapt its height too
+		UIView *sub = ((UIView *)[arrayOfViews objectAtIndex:0]);
+		[self setFrame:CGRectMake(0, 0, sub.frame.size.width, sub.frame.size.height)];
+		[self addSubview:sub];
 	}
 	return self;
 }
@@ -49,84 +43,59 @@
 #pragma mark - Property Funcitons
 
 - (void)setChatRoom:(LinphoneChatRoom *)achat {
-	self->chatRoom = achat;
+	chatRoom = achat;
 	[self update];
 }
 
 #pragma mark -
 
 - (NSString *)accessibilityValue {
-	if (chatContentLabel.text) {
-		return [NSString stringWithFormat:@"%@ - %@ (%li)", addressLabel.text, chatContentLabel.text,
-										  (long)[unreadMessageLabel.text integerValue]];
+	if (_chatContentLabel.text) {
+		return [NSString stringWithFormat:@"%@, %@ (%li)", _addressLabel.text, _chatContentLabel.text,
+										  (long)[_unreadCountLabel.text integerValue]];
 	} else {
-		return [NSString stringWithFormat:@"%@ (%li)", addressLabel.text, (long)[unreadMessageLabel.text integerValue]];
+		return [NSString stringWithFormat:@"%@ (%li)", _addressLabel.text, (long)[_unreadCountLabel.text integerValue]];
 	}
 }
 
 - (void)update {
-	NSString *displayName = nil;
-	UIImage *image = nil;
 	if (chatRoom == nil) {
 		LOGW(@"Cannot update chat cell: null chat");
 		return;
 	}
-	const LinphoneAddress *linphoneAddress = linphone_chat_room_get_peer_address(chatRoom);
-
-	if (linphoneAddress == NULL)
-		return;
-	char *tmp = linphone_address_as_string_uri_only(linphoneAddress);
-	NSString *normalizedSipAddress = [NSString stringWithUTF8String:tmp];
-	ms_free(tmp);
-
-	ABRecordRef contact = [[[LinphoneManager instance] fastAddressBook] getContact:normalizedSipAddress];
-	if (contact != nil) {
-		displayName = [FastAddressBook getContactDisplayName:contact];
-		image = [FastAddressBook getContactImage:contact thumbnail:true];
-	}
-
-	// Display name
-	if (displayName == nil) {
-		const char *username = linphone_address_get_username(linphoneAddress);
-		char *address = linphone_address_as_string(linphoneAddress);
-		displayName = [NSString stringWithUTF8String:username ?: address];
-		ms_free(address);
-	}
-	[addressLabel setText:displayName];
-
-	// Avatar
-	if (image == nil) {
-		image = [UIImage imageNamed:@"avatar_unknown_small.png"];
-	}
-	[avatarImage setImage:image];
+	const LinphoneAddress *addr = linphone_chat_room_get_peer_address(chatRoom);
+	[ContactDisplay setDisplayNameLabel:_addressLabel forAddress:addr];
+	[_avatarImage setImage:[FastAddressBook imageForAddress:addr thumbnail:YES] bordered:NO withRoundedRadius:YES];
 
 	LinphoneChatMessage *last_message = linphone_chat_room_get_user_data(chatRoom);
-
 	if (last_message) {
-
-		const char *text = linphone_chat_message_get_text(last_message);
-		const char *url = linphone_chat_message_get_external_body_url(last_message);
-		const LinphoneContent *last_content = linphone_chat_message_get_file_transfer_information(last_message);
-		// Message
-		if (url || last_content) {
-			[chatContentLabel setText:@"🗻"];
-		} else if (text) {
-			NSString *message = [NSString stringWithUTF8String:text];
-			// shorten long messages
-			if ([message length] > 50)
-				message = [[message substringToIndex:50] stringByAppendingString:@"[...]"];
-
-			chatContentLabel.text = message;
+		NSString *message = [UIChatBubbleTextCell TextMessageForChat:last_message];
+		// shorten long messages
+		if ([message length] > 50) {
+			message = [[message substringToIndex:50] stringByAppendingString:@"[...]"];
 		}
-
-		int count = linphone_chat_room_get_unread_messages_count(chatRoom);
-		unreadMessageLabel.text = [NSString stringWithFormat:@"%i", count];
-		[unreadMessageView setHidden:(count <= 0)];
+		_chatContentLabel.text = message;
+		_chatLatestTimeLabel.text =
+			[LinphoneUtils timeToString:linphone_chat_message_get_time(last_message) withFormat:LinphoneDateChatList];
+		_chatLatestTimeLabel.hidden = NO;
 	} else {
-		chatContentLabel.text = nil;
-		unreadMessageLabel.text = [NSString stringWithFormat:@"0"];
-		[unreadMessageView setHidden:TRUE];
+		_chatContentLabel.text = nil;
+		_chatLatestTimeLabel.text = NSLocalizedString(@"Now", nil);
 	}
+
+	[self updateUnreadBadge];
+}
+
+- (void)updateUnreadBadge {
+	int count = linphone_chat_room_get_unread_messages_count(chatRoom);
+	_unreadCountLabel.text = [NSString stringWithFormat:@"%i", count];
+	if (count > 0) {
+		[_unreadCountView startAnimating:YES];
+	} else {
+		[_unreadCountView stopAnimating:YES];
+	}
+	UIFont *addressFont = (count <= 0) ? [UIFont systemFontOfSize:25] : [UIFont boldSystemFontOfSize:25];
+	_addressLabel.font = addressFont;
 }
 
 - (void)setEditing:(BOOL)editing {
@@ -139,9 +108,9 @@
 		[UIView setAnimationDuration:0.3];
 	}
 	if (editing) {
-		[deleteButton setAlpha:1.0f];
-	} else {
-		[deleteButton setAlpha:0.0f];
+		[_unreadCountView stopAnimating:animated];
+	} else if (linphone_chat_room_get_unread_messages_count(chatRoom) > 0) {
+		[_unreadCountView startAnimating:animated];
 	}
 	if (animated) {
 		[UIView commitAnimations];
@@ -152,17 +121,11 @@
 
 - (IBAction)onDeleteClick:(id)event {
 	if (chatRoom != NULL) {
-		UIView *view = [self superview];
-		// Find TableViewCell
-		while (view != nil && ![view isKindOfClass:[UITableView class]])
-			view = [view superview];
-		if (view != nil) {
-			UITableView *tableView = (UITableView *)view;
-			NSIndexPath *indexPath = [tableView indexPathForCell:self];
-			[[tableView dataSource] tableView:tableView
-						   commitEditingStyle:UITableViewCellEditingStyleDelete
-							forRowAtIndexPath:indexPath];
-		}
+		UITableView *tableView = VIEW(ChatsListView).tableController.tableView;
+		NSIndexPath *indexPath = [tableView indexPathForCell:self];
+		[[tableView dataSource] tableView:tableView
+					   commitEditingStyle:UITableViewCellEditingStyleDelete
+						forRowAtIndexPath:indexPath];
 	}
 }
 

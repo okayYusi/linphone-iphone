@@ -22,8 +22,7 @@
 @synthesize key=_key;
 
 - (void)dealloc {
-    _key = nil;
-	
+	_key = nil;
 }
 
 @end

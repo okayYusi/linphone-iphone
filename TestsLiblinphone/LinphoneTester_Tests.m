@@ -11,6 +11,7 @@
 #include "linphone/liblinphone_tester.h"
 #import "NSObject+DTRuntime.h"
 #import "Utils.h"
+#import "Log.h"
 
 @interface LinphoneTester_Tests : XCTestCase
 @property(retain, nonatomic) NSString *bundlePath;
@@ -29,11 +30,14 @@
 	return [[testString componentsSeparatedByCharactersInSet:charactersToRemove] componentsJoinedByString:@"_"];
 }
 
-+ (void)initialize {
+void tester_logs_handler(int level, const char *fmt, va_list args) {
+	linphone_iphone_log_handler(NULL, level, fmt, args);
+}
 
++ (void)initialize {
 	static char *bundle = NULL;
 	static char *documents = NULL;
-	bc_tester_init((void (*)(int, const char *fm, va_list))linphone_iphone_log_handler, ORTP_MESSAGE, ORTP_ERROR);
+	bc_tester_init(tester_logs_handler, ORTP_MESSAGE, ORTP_ERROR);
 	liblinphone_tester_add_suites();
 
 	NSString *bundlePath = [[NSBundle mainBundle] bundlePath];
@@ -85,8 +89,8 @@
 
 - (void)testForSuite:(NSString *)suite andTest:(NSString *)test {
 	LOGI(@"Launching test %@ from suite %@", test, suite);
-	XCTAssertFalse(bc_tester_run_tests([suite UTF8String], [test UTF8String]), @"Suite '%@' / Test '%@' failed", suite,
-				   test);
+	XCTAssertFalse(bc_tester_run_tests([suite UTF8String], [test UTF8String], NULL), @"Suite '%@' / Test '%@' failed",
+				   suite, test);
 }
 
 - (void)dealloc {

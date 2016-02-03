@@ -23,11 +23,13 @@
 #import "LinphoneManager.h"
 
 @interface LinphoneCoreSettingsStore : IASKAbstractSettingsStore {
-	@private
+  @public
 	NSDictionary *dict;
 	NSDictionary *changedDict;
 }
 
 - (void)transformLinphoneCoreToKeys;
+- (void)transformAccountToKeys:(NSString *)username;
+- (void)removeAccount;
 
 @end

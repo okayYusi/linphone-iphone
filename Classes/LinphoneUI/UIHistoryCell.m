@@ -25,22 +25,22 @@
 @implementation UIHistoryCell
 
 @synthesize callLog;
-@synthesize addressLabel;
-@synthesize imageView;
-@synthesize deleteButton;
-@synthesize detailsButton;
+@synthesize displayNameLabel;
 
 #pragma mark - Lifecycle Functions
 
 - (id)initWithIdentifier:(NSString *)identifier {
 	if ((self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier]) != nil) {
-		NSArray *arrayOfViews = [[NSBundle mainBundle] loadNibNamed:@"UIHistoryCell" owner:self options:nil];
+		NSArray *arrayOfViews =
+			[[NSBundle mainBundle] loadNibNamed:NSStringFromClass(self.class) owner:self options:nil];
 
-		if ([arrayOfViews count] >= 1) {
-			[self.contentView addSubview:[arrayOfViews objectAtIndex:0]];
-		}
-
-		self->callLog = NULL;
+		// resize cell to match .nib size. It is needed when resized the cell to
+		// correctly adapt its height too
+		UIView *sub = ((UIView *)[arrayOfViews objectAtIndex:0]);
+		[self setFrame:CGRectMake(0, 0, sub.frame.size.width, sub.frame.size.height)];
+		[self addSubview:sub];
+		_detailsButton.hidden = IPAD;
+		callLog = NULL;
 	}
 	return self;
 }
@@ -49,6 +49,7 @@
 
 - (void)setCallLog:(LinphoneCallLog *)acallLog {
 	callLog = acallLog;
+
 	[self update];
 }
 
@@ -57,45 +58,21 @@
 - (IBAction)onDetails:(id)event {
 	if (callLog != NULL && linphone_call_log_get_call_id(callLog) != NULL) {
 		// Go to History details view
-		HistoryDetailsViewController *controller = DYNAMIC_CAST(
-			[[PhoneMainView instance] changeCurrentView:[HistoryDetailsViewController compositeViewDescription]
-												   push:TRUE],
-			HistoryDetailsViewController);
-		if (controller != nil) {
-			[controller setCallLogId:[NSString stringWithUTF8String:linphone_call_log_get_call_id(callLog)]];
-		}
-	}
-}
-
-- (IBAction)onDelete:(id)event {
-	if (callLog != NULL) {
-		UIView *view = [self superview];
-		// Find TableViewCell
-		while (view != nil && ![view isKindOfClass:[UITableView class]])
-			view = [view superview];
-		if (view != nil) {
-			UITableView *tableView = (UITableView *)view;
-			NSIndexPath *indexPath = [tableView indexPathForCell:self];
-			[[tableView dataSource] tableView:tableView
-						   commitEditingStyle:UITableViewCellEditingStyleDelete
-							forRowAtIndexPath:indexPath];
-		}
+		HistoryDetailsView *view = VIEW(HistoryDetailsView);
+		[view setCallLogId:[NSString stringWithUTF8String:linphone_call_log_get_call_id(callLog)]];
+		[PhoneMainView.instance changeCurrentView:view.compositeViewDescription];
+	} else {
+		LOGE(@"Cannot open selected call log, it is NULL or corrupted");
 	}
 }
 
 #pragma mark -
 
 - (NSString *)accessibilityValue {
-	// TODO: localize?
 	BOOL incoming = linphone_call_log_get_dir(callLog) == LinphoneCallIncoming;
 	BOOL missed = linphone_call_log_get_status(callLog) == LinphoneCallMissed;
-
-	NSString *call_type = @"Outgoing";
-	if (incoming) {
-		call_type = missed ? @"Missed" : @"Incoming";
-	}
-
-	return [NSString stringWithFormat:@"%@ from %@", call_type, addressLabel.text];
+	NSString *call_type = incoming ? (missed ? @"Missed" : @"Incoming") : @"Outgoing";
+	return [NSString stringWithFormat:@"%@ call from %@", call_type, displayNameLabel.text];
 }
 
 - (void)update {
@@ -105,7 +82,7 @@
 	}
 
 	// Set up the cell...
-	LinphoneAddress *addr;
+	const LinphoneAddress *addr;
 	UIImage *image;
 	if (linphone_call_log_get_dir(callLog) == LinphoneCallIncoming) {
 		if (linphone_call_log_get_status(callLog) != LinphoneCallMissed) {
@@ -113,41 +90,22 @@
 		} else {
 			image = [UIImage imageNamed:@"call_status_missed.png"];
 		}
-		addr = linphone_call_log_get_from(callLog);
+		addr = linphone_call_log_get_from_address(callLog);
 	} else {
 		image = [UIImage imageNamed:@"call_status_outgoing.png"];
-		addr = linphone_call_log_get_to(callLog);
+		addr = linphone_call_log_get_to_address(callLog);
+	}
+	_stateImage.image = image;
+
+	[ContactDisplay setDisplayNameLabel:displayNameLabel forAddress:addr];
+
+	int count = ms_list_size(linphone_call_log_get_user_data(callLog)) + 1;
+	if (count > 1) {
+		displayNameLabel.text =
+			[displayNameLabel.text stringByAppendingString:[NSString stringWithFormat:@" (%d)", count]];
 	}
 
-	NSString *address = nil;
-	if (addr != NULL) {
-		BOOL useLinphoneAddress = true;
-		// contact name
-		char *lAddress = linphone_address_as_string_uri_only(addr);
-		if (lAddress) {
-			NSString *normalizedSipAddress = [FastAddressBook normalizeSipURI:[NSString stringWithUTF8String:lAddress]];
-			ABRecordRef contact = [[[LinphoneManager instance] fastAddressBook] getContact:normalizedSipAddress];
-			if (contact) {
-				address = [FastAddressBook getContactDisplayName:contact];
-				useLinphoneAddress = false;
-			}
-			ms_free(lAddress);
-		}
-		if (useLinphoneAddress) {
-			const char *lDisplayName = linphone_address_get_display_name(addr);
-			const char *lUserName = linphone_address_get_username(addr);
-			if (lDisplayName)
-				address = [NSString stringWithUTF8String:lDisplayName];
-			else if (lUserName)
-				address = [NSString stringWithUTF8String:lUserName];
-		}
-	}
-	if (address == nil) {
-		address = NSLocalizedString(@"Unknown", nil);
-	}
-
-	[addressLabel setText:address];
-	[imageView setImage:image];
+	[_avatarImage setImage:[FastAddressBook imageForAddress:addr thumbnail:YES] bordered:NO withRoundedRadius:YES];
 }
 
 - (void)setEditing:(BOOL)editing {
@@ -160,11 +118,9 @@
 		[UIView setAnimationDuration:0.3];
 	}
 	if (editing) {
-		[deleteButton setAlpha:1.0f];
-		[detailsButton setAlpha:0.0f];
+		[_detailsButton setAlpha:0.0f];
 	} else {
-		[detailsButton setAlpha:1.0f];
-		[deleteButton setAlpha:0.0f];
+		[_detailsButton setAlpha:1.0f];
 	}
 	if (animated) {
 		[UIView commitAnimations];

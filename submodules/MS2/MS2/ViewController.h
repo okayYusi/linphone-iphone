@@ -14,12 +14,11 @@
 - (IBAction)changeCamUp:(id)sender;
 - (IBAction)changeCamDown:(id)sender;
 
-@property (weak, nonatomic) IBOutlet UIView *remoteView;
-@property (weak, nonatomic) IBOutlet UIView *localView;
-@property (weak, nonatomic) IBOutlet UIButton *startStreamLabel;
+@property(weak, nonatomic) IBOutlet UIView *remoteView;
+@property(weak, nonatomic) IBOutlet UIView *localView;
+@property(weak, nonatomic) IBOutlet UIButton *startStreamLabel;
 
-@property (weak, nonatomic) IBOutlet UILabel *infoLabel;
-@property (weak, nonatomic) IBOutlet UILabel *bandwidthLabel;
+@property(weak, nonatomic) IBOutlet UILabel *infoLabel;
+@property(weak, nonatomic) IBOutlet UILabel *bandwidthLabel;
 
 @end
-

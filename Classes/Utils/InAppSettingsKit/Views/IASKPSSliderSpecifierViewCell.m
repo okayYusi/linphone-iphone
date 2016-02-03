@@ -25,25 +25,22 @@
     if (self) {
         // Setting only frame data that will not be overwritten by layoutSubviews
         // Slider
-        _slider = [[IASKSlider alloc] initWithFrame:CGRectMake(0, 0, 0, 23)];
-        _slider.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin |
-        UIViewAutoresizingFlexibleWidth;
-        _slider.continuous = NO;
-        [self.contentView addSubview:_slider];
+		_slider = [[IASKSlider alloc] initWithFrame:CGRectMake(0, 0, 0, 23)];
+		_slider.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleWidth;
+		_slider.continuous = NO;
+		[self.contentView addSubview:_slider];
 
         // MinImage
-        _minImage = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, 21, 21)];
-        _minImage.autoresizingMask = UIViewAutoresizingFlexibleRightMargin |
-        UIViewAutoresizingFlexibleBottomMargin;
-        [self.contentView addSubview:_minImage];
+		_minImage = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, 21, 21)];
+		_minImage.autoresizingMask = UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
+		[self.contentView addSubview:_minImage];
 
-        // MaxImage
-        _maxImage = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, 21, 21)];
-        _maxImage.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin |
-        UIViewAutoresizingFlexibleBottomMargin;
-        [self.contentView addSubview:_maxImage];
+		// MaxImage
+		_maxImage = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, 21, 21)];
+		_maxImage.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleBottomMargin;
+		[self.contentView addSubview:_maxImage];
 
-        self.selectionStyle = UITableViewCellSelectionStyleNone;
+		self.selectionStyle = UITableViewCellSelectionStyleNone;
     }
     return self;
 }
