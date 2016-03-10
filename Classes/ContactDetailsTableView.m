@@ -150,6 +150,8 @@
 		[cell.editTextfield setDelegate:self];
 	}
 
+	cell.selectionStyle = UITableViewCellSelectionStyleNone;
+
 	cell.indexPath = indexPath;
 	[cell hideDeleteButton:NO];
 	[cell.editTextfield setKeyboardType:UIKeyboardTypeDefault];
@@ -178,7 +180,7 @@
 		[cell.editTextfield setKeyboardType:UIKeyboardTypeEmailAddress];
 	}
 
-	[cell setAddress:value];
+	[cell setAddress:value isPhone:(indexPath.section == ContactSections_Number)];
 
 	return cell;
 }
@@ -278,7 +280,7 @@
 	[tempView addSubview:tempLabel];
 
 	if (canAddEntry) {
-		frame.origin.x = tableView.frame.size.width / 2 - 28;
+		frame.origin.x = (tableView.frame.size.width - 30 /*image size*/) / 2 - 5 /*right offset*/;
 		UIIconButton *tempAddButton = [[UIIconButton alloc] initWithFrame:frame];
 		[tempAddButton setImage:[UIImage imageNamed:@"add_field_default.png"] forState:UIControlStateNormal];
 		[tempAddButton setImage:[UIImage imageNamed:@"add_field_over.png"] forState:UIControlStateHighlighted];

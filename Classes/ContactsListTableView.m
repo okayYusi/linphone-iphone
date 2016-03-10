@@ -38,6 +38,16 @@ static void sync_address_book(ABAddressBookRef addressBook, CFDictionaryRef info
 	ABAddressBookRegisterExternalChangeCallback(addressBook, sync_address_book, (__bridge void *)(self));
 }
 
+- (void)viewWillAppear:(BOOL)animated {
+	[super viewWillAppear:animated];
+	if (IPAD) {
+		if (![self selectFirstRow]) {
+			ContactDetailsView *view = VIEW(ContactDetailsView);
+			[view setContact:nil];
+		}
+	}
+}
+
 - (id)init {
 	self = [super init];
 	if (self) {
@@ -102,7 +112,6 @@ static int ms_strcmpfuz(const char *fuzzy_word, const char *sentence) {
 - (void)loadData {
 	LOGI(@"Load contact list");
 	@synchronized(addressBookMap) {
-
 		// Reset Address book
 		[addressBookMap removeAllObjects];
 
@@ -142,16 +151,17 @@ static int ms_strcmpfuz(const char *fuzzy_word, const char *sentence) {
 				[subDic insertObject:lPerson forKey:name selector:@selector(caseInsensitiveCompare:)];
 			}
 		}
-	}
-	[super loadData];
+		[super loadData];
 
-	if (IPAD) {
-		// if contact details view is using a contact that does not exist anymore, update it
-		ContactDetailsView *view = VIEW(ContactDetailsView);
-		ABRecordRef contact = ([self totalNumberOfItems] > 0)
-								  ? [self contactForIndexPath:[NSIndexPath indexPathForRow:0 inSection:0]]
-								  : nil;
-		[view setContact:contact];
+		// since we refresh the tableview, we must perform this on main thread
+		dispatch_async(dispatch_get_main_queue(), ^(void) {
+		  if (IPAD) {
+			  if (![self selectFirstRow]) {
+				  ContactDetailsView *view = VIEW(ContactDetailsView);
+				  [view setContact:nil];
+			  }
+		  }
+		});
 	}
 }
 
@@ -230,7 +240,7 @@ static void sync_address_book(ABAddressBookRef addressBook, CFDictionaryRef info
 		// Go to Contact details view
 		ContactDetailsView *view = VIEW(ContactDetailsView);
 		[PhoneMainView.instance changeCurrentView:view.compositeViewDescription];
-		if ([ContactSelection getSelectionMode] != ContactSelectionModeEdit) {
+		if (([ContactSelection getSelectionMode] != ContactSelectionModeEdit) || !([ContactSelection getAddAddress])) {
 			[view setContact:lPerson];
 		} else {
 			[view editContact:lPerson address:[ContactSelection getAddAddress]];
@@ -247,7 +257,7 @@ static void sync_address_book(ABAddressBookRef addressBook, CFDictionaryRef info
 		OrderedDictionary *subDic = [addressBookMap objectForKey:[addressBookMap keyAtIndex:[indexPath section]]];
 		NSString *key = [[subDic allKeys] objectAtIndex:[indexPath row]];
 		ABRecordRef contact = (__bridge ABRecordRef)([subDic objectForKey:key]);
-		NSString *firstChar = [[self displayNameForContact:contact] substringToIndex:1];
+		NSString *firstChar = [[self displayNameForContact:contact] substringToIndex:1].uppercaseString;
 		[[addressBookMap objectForKey:firstChar] removeObjectForKey:[self displayNameForContact:contact]];
 		if ([tableView numberOfRowsInSection:indexPath.section] == 1) {
 			[addressBookMap removeObjectForKey:firstChar];
@@ -268,7 +278,7 @@ static void sync_address_book(ABAddressBookRef addressBook, CFDictionaryRef info
 	  OrderedDictionary *subDic = [addressBookMap objectForKey:[addressBookMap keyAtIndex:[indexPath section]]];
 	  NSString *key = [[subDic allKeys] objectAtIndex:[indexPath row]];
 	  ABRecordRef contact = (__bridge ABRecordRef)([subDic objectForKey:key]);
-	  NSString *firstChar = [[self displayNameForContact:contact] substringToIndex:1];
+	  NSString *firstChar = [[self displayNameForContact:contact] substringToIndex:1].uppercaseString;
 	  [[addressBookMap objectForKey:firstChar] removeObjectForKey:[self displayNameForContact:contact]];
 	  if ([self.tableView numberOfRowsInSection:indexPath.section] == 1) {
 		  [addressBookMap removeObjectForKey:firstChar];

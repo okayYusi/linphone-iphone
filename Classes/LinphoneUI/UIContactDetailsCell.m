@@ -40,9 +40,18 @@
 
 #pragma mark - UITableViewCell Functions
 
-- (void)setAddress:(NSString *)address {
-	_addressLabel.text = _editTextfield.text = address;
+- (void)setAddress:(NSString *)address isPhone:(BOOL)phone {
+	NSString *name = address;
+	if (phone) {
+		char *normalizedPhone = linphone_proxy_config_normalize_phone_number(linphone_core_get_default_proxy_config(LC),
+																			 address.UTF8String);
+		if (normalizedPhone) {
+			name = [NSString stringWithUTF8String:normalizedPhone];
+			ms_free(normalizedPhone);
+		}
+	}
 
+	_addressLabel.text = _editTextfield.text = name;
 	LinphoneAddress *addr = linphone_core_interpret_url(LC, _addressLabel.text.UTF8String);
 	_chatButton.enabled = _callButton.enabled = (addr != NULL);
 
@@ -55,8 +64,14 @@
 }
 
 - (void)hideDeleteButton:(BOOL)hidden {
-	CGRect newFrame = CGRectMake(8, 7, self.editView.frame.size.width - 16, self.editView.frame.size.height - 14);
-	if (!hidden) {
+	if (_deleteButton.hidden == hidden)
+		return;
+
+	CGRect newFrame = _editTextfield.frame;
+	newFrame.size.width = _editView.frame.size.width - newFrame.origin.x;
+	if (hidden) {
+		newFrame.size.width -= newFrame.origin.x; /* center view in super view */
+	} else {
 		newFrame.size.width -= _deleteButton.frame.size.width;
 	}
 	_editTextfield.frame = newFrame;
