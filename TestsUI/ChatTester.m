@@ -34,16 +34,6 @@
 
 #pragma mark - tools
 
-- (void)removeAllRooms {
-	if (![tester tryFindingTappableViewWithAccessibilityLabel:@"Edit" error:nil])
-		return;
-
-	[tester tapViewWithAccessibilityLabel:@"Edit" traits:UIAccessibilityTraitButton];
-	[tester tapViewWithAccessibilityLabel:@"Select all" traits:UIAccessibilityTraitButton];
-	[tester tapViewWithAccessibilityLabel:@"Delete all" traits:UIAccessibilityTraitButton];
-	[tester tapViewWithAccessibilityLabel:@"DELETE" traits:UIAccessibilityTraitButton];
-}
-
 - (void)dismissKeyboard {
 	[tester tapScreenAtPoint:CGPointMake(0, 0)]; // dismiss keyboard, if any
 }
@@ -100,9 +90,9 @@
 	[tester tapViewWithAccessibilityLabel:element.accessibilityLabel];
 }
 
-- (void)downloadImage {
+- (void)downloadImageWithQuality:(NSString *)quality {
 	[self startChatWith:[self me]];
-	[self uploadImageWithQuality:@"Minimum"];
+	[self uploadImageWithQuality:quality];
 	// wait for the upload to terminate...
 	for (int i = 0; i < 90; i++) {
 		[tester waitForTimeInterval:1.f];
@@ -111,7 +101,7 @@
 	}
 	[tester waitForViewWithAccessibilityLabel:@"Download"];
 	[tester tapViewWithAccessibilityLabel:@"Download"];
-	[tester waitForTimeInterval:.5f]; // just wait a few secs to start download
+	[tester waitForTimeInterval:.1f]; // just wait a few msecs to start download
 	ASSERT_EQ(LinphoneManager.instance.fileTransferDelegates.count, 1);
 }
 
@@ -119,13 +109,20 @@
 
 - (void)testChatFromContactPhoneNumber {
 	[tester tapViewWithAccessibilityLabel:@"Contacts"];
-	[tester tapViewWithAccessibilityLabel:@"Anna Haro"];
-	[tester tapViewWithAccessibilityLabel:@"Chat with 555-522-8243"];
+	NSString *name = [UIDevice.currentDevice.identifierForVendor.UUIDString
+		substringFromIndex:UIDevice.currentDevice.identifierForVendor.UUIDString.length - 6];
+	NSString *fullName = [NSString stringWithFormat:@"Anna %@", name];
+	[self createContact:@"Anna" lastName:name phoneNumber:@"555-522-8243" SIPAddress:nil];
+
+	[tester tapViewWithAccessibilityLabel:@"Back"];
+	[tester tapViewWithAccessibilityLabel:@"All contacts filter"];
+	[tester tapViewWithAccessibilityLabel:fullName];
+	[tester tapViewWithAccessibilityLabel:@"Chat with 5555228243"];
 	[self goBackFromChat];
 	UITableView *tv = [self findTableView:@"Chat list"];
 	ASSERT_EQ([tv numberOfRowsInSection:0], 1);
 	[tester waitForViewWithAccessibilityLabel:@"Contact name, Message"
-										value:@"Anna Haro (0)"
+										value:[NSString stringWithFormat:@"%@ (0)", fullName]
 									   traits:UIAccessibilityTraitStaticText];
 }
 
@@ -258,7 +255,7 @@
 }
 
 - (void)testTransferCancelDownloadImage {
-	[self downloadImage];
+	[self downloadImageWithQuality:@"Maximum"];
 	[tester tapViewWithAccessibilityLabel:@"Cancel"];
 	ASSERT_EQ([[[LinphoneManager instance] fileTransferDelegates] count], 0);
 }
@@ -278,7 +275,7 @@
 }
 
 - (void)testTransferDownloadImage {
-	[self downloadImage];
+	[self downloadImageWithQuality:@"Minimum"];
 	[tester waitForAbsenceOfViewWithAccessibilityLabel:@"Cancel"];
 	ASSERT_EQ([[[LinphoneManager instance] fileTransferDelegates] count], 0);
 }

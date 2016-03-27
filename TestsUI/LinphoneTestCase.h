@@ -26,6 +26,12 @@
 
 - (void)waitForRegistration;
 
+- (void)removeAllRooms;
+- (void)createContact:(NSString *)firstName
+			 lastName:(NSString *)lastName
+		  phoneNumber:(NSString *)phone
+		   SIPAddress:(NSString *)sip;
+
 @end
 
 #define ASSERT_EQ(actual, expected)                                                                                    \
