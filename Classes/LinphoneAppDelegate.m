@@ -250,8 +250,19 @@
 	// remote push notifications, we want to continue receiving them
 	if (LinphoneManager.instance.pushNotificationToken != nil) {
 		// trick me! setting network reachable to false will avoid sending unregister
-		linphone_core_set_network_reachable(LC, FALSE);
+		const MSList *proxies = linphone_core_get_proxy_config_list(LC);
+		BOOL pushNotifEnabled = NO;
+		while (proxies) {
+			const char *refkey = linphone_proxy_config_get_ref_key(proxies->data);
+			pushNotifEnabled = pushNotifEnabled || (refkey && strcmp(refkey, "push_notification") == 0);
+			proxies = proxies->next;
+		}
+		// but we only want to hack if at least one proxy config uses remote push..
+		if (pushNotifEnabled) {
+			linphone_core_set_network_reachable(LC, FALSE);
+		}
 	}
+
 	[LinphoneManager.instance destroyLinphoneCore];
 }
 
@@ -465,7 +476,17 @@
 			  withResponseInfo:(NSDictionary *)responseInfo
 			 completionHandler:(void (^)())completionHandler {
 
-	if ([notification.category isEqualToString:@"incoming_msg"] && [identifier isEqualToString:@"reply_inline"]) {
+	if ([notification.category isEqualToString:@"incoming_call"]) {
+		if ([identifier isEqualToString:@"answer"]) {
+			// use the standard handler
+			[self application:application didReceiveLocalNotification:notification];
+		} else if ([identifier isEqualToString:@"decline"]) {
+			LinphoneCall *call = linphone_core_get_current_call(LC);
+			if (call)
+				linphone_core_decline_call(LC, call, LinphoneReasonDeclined);
+		}
+	} else if ([notification.category isEqualToString:@"incoming_msg"] &&
+			   [identifier isEqualToString:@"reply_inline"]) {
 		LinphoneCore *lc = [LinphoneManager getLc];
 		NSString *replyText = [responseInfo objectForKey:UIUserNotificationActionResponseTypedTextKey];
 		NSString *from = [notification.userInfo objectForKey:@"from_addr"];
@@ -477,6 +498,7 @@
 			[PhoneMainView.instance updateApplicationBadgeNumber];
 		}
 	}
+	completionHandler();
 }
 
 - (void)application:(UIApplication *)application

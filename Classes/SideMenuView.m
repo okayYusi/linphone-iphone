@@ -56,14 +56,22 @@
 		const LinphoneAddress *addr = linphone_proxy_config_get_identity_address(default_proxy);
 		[ContactDisplay setDisplayNameLabel:_nameLabel forAddress:addr];
 		char *as_string = linphone_address_as_string_uri_only(addr);
-		[_addressButton setTitle:[NSString stringWithUTF8String:as_string] forState:UIControlStateNormal];
+		_addressLabel.text = [NSString stringWithUTF8String:as_string];
 		ms_free(as_string);
-		[_addressButton setImage:[StatusBarView imageForState:linphone_proxy_config_get_state(default_proxy)]
-						forState:UIControlStateNormal];
+		_presenceImage.image = [StatusBarView imageForState:linphone_proxy_config_get_state(default_proxy)];
 	} else {
 		_nameLabel.text = @"No account";
-		[_addressButton setTitle:NSLocalizedString(@"No address", nil) forState:UIControlStateNormal];
-		[_addressButton setImage:nil forState:UIControlStateNormal];
+		// display direct IP:port address so that we can be reached
+		LinphoneAddress *addr = linphone_core_get_primary_contact_parsed(LC);
+		if (addr) {
+			char *as_string = linphone_address_as_string_uri_only(addr);
+			_addressLabel.text = [NSString stringWithFormat:@"%s", as_string];
+			ms_free(as_string);
+			linphone_address_destroy(addr);
+		} else {
+			_addressLabel.text = NSLocalizedString(@"No address", nil);
+		}
+		_presenceImage.image = nil;
 	}
 	_avatarImage.image = [LinphoneUtils selfAvatar];
 }
@@ -99,6 +107,15 @@
 #pragma mark - Image picker delegate
 
 - (void)imagePickerDelegateImage:(UIImage *)image info:(NSDictionary *)info {
+	// When getting image from the camera, it may be 90° rotated due to orientation
+	// (image.imageOrientation = UIImageOrientationRight). Just rotate it to be face up.
+	if (image.imageOrientation != UIImageOrientationUp) {
+		UIGraphicsBeginImageContextWithOptions(image.size, false, image.scale);
+		[image drawInRect:CGRectMake(0, 0, image.size.width, image.size.height)];
+		image = UIGraphicsGetImageFromCurrentImageContext();
+		UIGraphicsEndImageContext();
+	}
+
 	// Dismiss popover on iPad
 	if (IPAD) {
 		[VIEW(ImagePickerView).popoverController dismissPopoverAnimated:TRUE];
@@ -107,8 +124,25 @@
 	}
 
 	NSURL *url = [info valueForKey:UIImagePickerControllerReferenceURL];
-	[LinphoneManager.instance lpConfigSetString:url.absoluteString forKey:@"avatar"];
-	_avatarImage.image = [LinphoneUtils selfAvatar];
+
+	// taken from camera, must be saved to device first
+	if (!url) {
+		[LinphoneManager.instance.photoLibrary
+			writeImageToSavedPhotosAlbum:image.CGImage
+							 orientation:(ALAssetOrientation)[image imageOrientation]
+						 completionBlock:^(NSURL *assetURL, NSError *error) {
+						   if (error) {
+							   LOGE(@"Cannot save image data downloaded [%@]", [error localizedDescription]);
+						   } else {
+							   LOGI(@"Image saved to [%@]", [assetURL absoluteString]);
+						   }
+						   [LinphoneManager.instance lpConfigSetString:assetURL.absoluteString forKey:@"avatar"];
+						   _avatarImage.image = [LinphoneUtils selfAvatar];
+						 }];
+	} else {
+		[LinphoneManager.instance lpConfigSetString:url.absoluteString forKey:@"avatar"];
+		_avatarImage.image = [LinphoneUtils selfAvatar];
+	}
 }
 
 @end

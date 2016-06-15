@@ -22,7 +22,6 @@
 #import "UIContactDetailsCell.h"
 #import "Utils.h"
 #import "OrderedDictionary.h"
-#import "FastAddressBook.h"
 
 @implementation ContactDetailsTableView
 
@@ -66,6 +65,8 @@
 	if (rmed) {
 		[tableview deleteRowsAtIndexPaths:@[ path ]
 						 withRowAnimation:animated ? UITableViewRowAnimationFade : UITableViewRowAnimationNone];
+	} else {
+		LOGW(@"Cannot remove entry at path %@, skipping", path);
 	}
 }
 
@@ -79,10 +80,12 @@
 		added = [_contact addEmail:value];
 	}
 
-	if (added && animated) {
+	if (added) {
 		NSUInteger count = [self getSectionData:section].count;
 		[tableview insertRowsAtIndexPaths:@[ [NSIndexPath indexPathForRow:count - 1 inSection:section] ]
-						 withRowAnimation:UITableViewRowAnimationFade];
+						 withRowAnimation:animated ? UITableViewRowAnimationFade : UITableViewRowAnimationNone];
+	} else {
+		LOGW(@"Cannot add entry '%@' in section %d, skipping", value, section);
 	}
 }
 
@@ -115,7 +118,9 @@
 }
 
 - (BOOL)isValid {
-	return _contact.firstName.length + _contact.lastName.length > 0;
+	BOOL hasName = (_contact.firstName.length + _contact.lastName.length > 0);
+	BOOL hasAddr = ((NSString *)_contact.phoneNumbers[0]).length + ((NSString *)_contact.sipAddresses[0]).length > 0;
+	return hasName && hasAddr;
 }
 
 #pragma mark - UITableViewDataSource Functions
@@ -137,7 +142,8 @@
 	} else if (section == ContactSections_Number) {
 		return _contact.phoneNumbers.count;
 	} else if (section == ContactSections_Email) {
-		return _contact.emails.count;
+		BOOL showEmails = [LinphoneManager.instance lpConfigBoolForKey:@"show_contacts_emails_preference"];
+		return showEmails ? _contact.emails.count : 0;
 	}
 	return 0;
 }
@@ -180,7 +186,7 @@
 		[cell.editTextfield setKeyboardType:UIKeyboardTypeEmailAddress];
 	}
 
-	[cell setAddress:value isPhone:(indexPath.section == ContactSections_Number)];
+	[cell setAddress:value];
 
 	return cell;
 }
@@ -223,7 +229,7 @@
 
 				[self removeEmptyEntry:self.tableView section:section animated:NO];
 				// the section is empty -> remove titles
-				if ([[self getSectionData:section] count] == 0 && animated) {
+				if ([[self getSectionData:section] count] == 0) {
 					[self.tableView
 						  reloadSections:[NSIndexSet indexSetWithIndex:section]
 						withRowAnimation:animated ? UITableViewRowAnimationFade : UITableViewRowAnimationNone];
@@ -336,7 +342,7 @@
 	return YES;
 }
 
-- (BOOL)textFieldShouldEndEditing:(UITextField *)textField {
+- (void)textFieldUpdated:(UITextField *)textField {
 	UIView *view = [textField superview];
 	while (view != nil && ![view isKindOfClass:[UIContactDetailsCell class]])
 		view = [view superview];
@@ -357,12 +363,15 @@
 				break;
 			case ContactSections_Sip:
 				[_contact setSipAddress:value atIndex:path.row];
+				value = _contact.sipAddresses[path.row]; // in case of reformatting
 				break;
 			case ContactSections_Email:
 				[_contact setEmail:value atIndex:path.row];
+				value = _contact.emails[path.row]; // in case of reformatting
 				break;
 			case ContactSections_Number:
 				[_contact setPhoneNumber:value atIndex:path.row];
+				value = _contact.phoneNumbers[path.row]; // in case of reformatting
 				break;
 			case ContactSections_MAX:
 			case ContactSections_None:
@@ -371,7 +380,43 @@
 		cell.editTextfield.text = value;
 		_editButton.enabled = [self isValid];
 	}
-	return TRUE;
+}
+
+- (void)textFieldDidEndEditing:(UITextField *)textField {
+	[self textFieldUpdated:textField];
+}
+
+- (BOOL)textField:(UITextField *)textField
+	shouldChangeCharactersInRange:(NSRange)range
+				replacementString:(NSString *)string {
+#if 0
+	// every time we modify contact entry, we must check if we can enable "edit" button
+	UIView *view = [textField superview];
+	while (view != nil && ![view isKindOfClass:[UIContactDetailsCell class]])
+		view = [view superview];
+
+	UIContactDetailsCell *cell = (UIContactDetailsCell *)view;
+	// we cannot use indexPathForCell method here because if the cell is not visible anymore,
+	// it will return nil..
+	NSIndexPath *path = cell.indexPath;
+
+	_editButton.enabled = NO;
+	for (ContactSections s = ContactSections_Sip; !_editButton.enabled && s <= ContactSections_Number; s++) {
+		for (int i = 0; !_editButton.enabled && i < [self tableView:self.tableView numberOfRowsInSection:s]; i++) {
+			NSIndexPath *cellpath = [NSIndexPath indexPathForRow:i inSection:s];
+			if ([cellpath isEqual:path]) {
+				_editButton.enabled = (textField.text.length > 0);
+			} else {
+				UIContactDetailsCell *cell =
+					(UIContactDetailsCell *)[self tableView:self.tableView cellForRowAtIndexPath:cellpath];
+				_editButton.enabled = (cell.editTextfield.text.length > 0);
+			}
+		}
+	}
+#else
+	[self textFieldUpdated:textField];
+#endif
+	return YES;
 }
 
 @end

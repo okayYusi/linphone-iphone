@@ -249,23 +249,25 @@ static UICompositeViewDescription *compositeDescription = nil;
 
 		[alertView addCancelButtonWithTitle:NSLocalizedString(@"Cancel", nil) block:nil];
 
-		[alertView
-			addButtonWithTitle:NSLocalizedString(@"Send logs", nil)
-						 block:^{
-						   NSString *appName =
-							   [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"];
-						   NSString *logsAddress = [mgr lpConfigStringForKey:@"debug_popup_email" withDefault:@""];
-						   [self presentMailViewWithTitle:appName forRecipients:@[ logsAddress ] attachLogs:true];
-						 }];
-
 		int debugLevel = [LinphoneManager.instance lpConfigIntForKey:@"debugenable_preference"];
 		BOOL debugEnabled = (debugLevel >= ORTP_DEBUG && debugLevel < ORTP_ERROR);
+
+		if (debugEnabled) {
+			[alertView
+				addButtonWithTitle:NSLocalizedString(@"Send logs", nil)
+							 block:^{
+							   NSString *appName =
+								   [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"];
+							   NSString *logsAddress = [mgr lpConfigStringForKey:@"debug_popup_email" withDefault:@""];
+							   [self presentMailViewWithTitle:appName forRecipients:@[ logsAddress ] attachLogs:true];
+							 }];
+		}
 		NSString *actionLog =
 			(debugEnabled ? NSLocalizedString(@"Disable logs", nil) : NSLocalizedString(@"Enable logs", nil));
 		[alertView
 			addButtonWithTitle:actionLog
 						 block:^{
-						   int newDebugLevel = debugEnabled ? ORTP_ERROR : ORTP_DEBUG;
+						   int newDebugLevel = debugEnabled ? 0 : ORTP_DEBUG;
 						   [LinphoneManager.instance lpConfigSetInt:newDebugLevel forKey:@"debugenable_preference"];
 						   [Log enableLogs:newDebugLevel];
 						 }];
@@ -328,7 +330,7 @@ static UICompositeViewDescription *compositeDescription = nil;
 		[_addressField resignFirstResponder];
 	}
 	if (textField.text.length > 0) {
-		LinphoneAddress *addr = linphone_core_interpret_url(LC, textField.text.UTF8String);
+		LinphoneAddress *addr = [LinphoneUtils normalizeSipOrPhoneAddress:textField.text];
 		[LinphoneManager.instance call:addr];
 		if (addr)
 			linphone_address_destroy(addr);
@@ -390,7 +392,7 @@ static UICompositeViewDescription *compositeDescription = nil;
 - (void)onOneLongClick:(id)sender {
 	LinphoneManager *lm = LinphoneManager.instance;
 	NSString *voiceMail = [lm lpConfigStringForKey:@"voice_mail_uri"];
-	LinphoneAddress *addr = linphone_core_interpret_url(LC, voiceMail ? voiceMail.UTF8String : NULL);
+	LinphoneAddress *addr = [LinphoneUtils normalizeSipOrPhoneAddress:voiceMail];
 	if (addr) {
 		linphone_address_set_display_name(addr, NSLocalizedString(@"Voice mail", nil).UTF8String);
 		[lm call:addr];

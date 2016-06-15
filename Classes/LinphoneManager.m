@@ -248,7 +248,6 @@ struct codec_name_pref_table codec_pref_table[] = {{"speex", 8000, "speex_8k_pre
 		_database = NULL;
 		_speakerEnabled = FALSE;
 		_bluetoothEnabled = FALSE;
-		_tunnelMode = FALSE;
 
 		_fileTransferDelegates = [[NSMutableArray alloc] init];
 
@@ -520,6 +519,20 @@ static void migrateWizardToAssistant(const char *entry, void *user_data) {
 	//	lp_config_for_each_entry(_configDb, "wizard", migrateWizardToAssistant, (__bridge void *)(self));
 }
 
+- (void)migratePushNotificationPerAccount {
+	NSString *s = [self lpConfigStringForKey:@"pushnotification_preference"];
+	if (s && s.boolValue) {
+		LOGI(@"Migrating push notification per account, enabling for ALL");
+		[self lpConfigSetBool:NO forKey:@"pushnotification_preference"];
+		const MSList *proxies = linphone_core_get_proxy_config_list(LC);
+		while (proxies) {
+			linphone_proxy_config_set_ref_key(proxies->data, "push_notification");
+			[self configurePushTokenForProxyConfig:proxies->data];
+			proxies = proxies->next;
+		}
+	}
+}
+
 #pragma mark - Linphone Core Functions
 
 + (LinphoneCore *)getLc {
@@ -533,27 +546,12 @@ static void migrateWizardToAssistant(const char *entry, void *user_data) {
 
 #pragma mark Debug functions
 
-struct _entry_data {
-	const LpConfig *conf;
-	const char *section;
-};
-
-static void dump_entry(const char *entry, void *data) {
-	struct _entry_data *d = (struct _entry_data *)data;
-	const char *value = lp_config_get_string(d->conf, d->section, entry, "");
-	LOGI(@"%s=%s", entry, value);
-}
-
-static void dump_section(const char *section, void *data) {
-	LOGI(@"[%s]", section);
-	struct _entry_data d = {(const LpConfig *)data, section};
-	lp_config_for_each_entry((const LpConfig *)data, section, dump_entry, &d);
-}
-
 + (void)dumpLcConfig {
 	if (theLinphoneCore) {
 		LpConfig *conf = LinphoneManager.instance.configDb;
-		lp_config_for_each_section(conf, dump_section, conf);
+		char *config = lp_config_dump(conf);
+		LOGI(@"\n%s", config);
+		ms_free(config);
 	}
 }
 
@@ -825,9 +823,7 @@ static void linphone_iphone_configuring_status_changed(LinphoneCore *lc, Linphon
 	if (_wasRemoteProvisioned) {
 		LinphoneProxyConfig *cfg = linphone_core_get_default_proxy_config(LC);
 		if (cfg) {
-			linphone_proxy_config_edit(cfg);
 			[self configurePushTokenForProxyConfig:cfg];
-			linphone_proxy_config_done(cfg);
 		}
 	}
 }
@@ -1213,7 +1209,6 @@ void networkReachabilityCallBack(SCNetworkReachabilityRef target, SCNetworkReach
 			lm.connectivity = none;
 			[LinphoneManager kickOffNetworkConnection];
 		} else {
-			LinphoneTunnel *tunnel = linphone_core_get_tunnel(LC);
 			Connectivity newConnectivity;
 			BOOL isWifiOnly = [lm lpConfigBoolForKey:@"wifi_only_preference" withDefault:FALSE];
 			if (!ctx || ctx->testWWan)
@@ -1231,9 +1226,9 @@ void networkReachabilityCallBack(SCNetworkReachabilityRef target, SCNetworkReach
 				// else keep default value from linphonecore
 			}
 
-			if (lm.connectivity != newConnectivity) {
-				if (tunnel)
-					linphone_tunnel_reconnect(tunnel);
+			// in case of wifi change (newconnectivity == lm.connectivity == wifi), we must
+			// reregister because we are using a different router anyway
+			if (lm.connectivity != newConnectivity || newConnectivity != wwan) {
 				// connectivity has changed
 				linphone_core_set_network_reachable(theLinphoneCore, false);
 				if (newConnectivity == wwan && proxy && isWifiOnly) {
@@ -1242,18 +1237,7 @@ void networkReachabilityCallBack(SCNetworkReachabilityRef target, SCNetworkReach
 				linphone_core_set_network_reachable(theLinphoneCore, true);
 				linphone_core_iterate(theLinphoneCore);
 				LOGI(@"Network connectivity changed to type [%s]", (newConnectivity == wifi ? "wifi" : "wwan"));
-			}
-			lm.connectivity = newConnectivity;
-			switch (lm.tunnelMode) {
-				case tunnel_wwan:
-					linphone_tunnel_enable(tunnel, lm.connectivity == wwan);
-					break;
-				case tunnel_auto:
-					linphone_tunnel_auto_detect(tunnel);
-					break;
-				default:
-					// nothing to do
-					break;
+				lm.connectivity = newConnectivity;
 			}
 		}
 		if (ctx && ctx->networkStateChanged) {
@@ -1378,13 +1362,14 @@ static LinphoneCoreVTable linphonec_vtable = {
 	NSString *zrtpSecretsFileName = [LinphoneManager documentFile:@"zrtp_secrets"];
 	NSString *chatDBFileName = [LinphoneManager documentFile:kLinphoneInternalChatDBFilename];
 
-	NSMutableString *device = [[NSMutableString alloc]
+	NSString *device = [[NSMutableString alloc]
 		initWithString:[NSString
 						   stringWithFormat:@"%@_%@_iOS%@",
 											[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleDisplayName"],
-											[LinphoneUtils deviceName], UIDevice.currentDevice.systemVersion]];
-	[device stringByReplacingOccurrencesOfString:@"," withString:@"."];
-	[device stringByReplacingOccurrencesOfString:@" " withString:@"."];
+											[LinphoneUtils deviceModelIdentifier],
+											UIDevice.currentDevice.systemVersion]];
+	device = [device stringByReplacingOccurrencesOfString:@"," withString:@"."];
+	device = [device stringByReplacingOccurrencesOfString:@" " withString:@"."];
 	linphone_core_set_user_agent(theLinphoneCore, device.UTF8String, LINPHONE_IOS_VERSION);
 
 	_contactSipField = [self lpConfigStringForKey:@"contact_im_type_value" withDefault:@"SIP"];
@@ -1398,8 +1383,8 @@ static LinphoneCoreVTable linphonec_vtable = {
 	linphone_core_set_call_logs_database_path(theLinphoneCore, [chatDBFileName UTF8String]);
 
 	[self migrationLinphoneSettings];
-
 	[self migrationFromVersion2To3];
+	[self migratePushNotificationPerAccount];
 
 	[self setupNetworkReachabilityCallback];
 
@@ -1417,7 +1402,8 @@ static LinphoneCoreVTable linphonec_vtable = {
 		if (strcmp(FRONT_CAM_NAME, cam) == 0) {
 			_frontCamId = cam;
 			// great set default cam to front
-			linphone_core_set_video_device(theLinphoneCore, cam);
+			LOGI(@"Setting default camera [%s]", _frontCamId);
+			linphone_core_set_video_device(theLinphoneCore, _frontCamId);
 		}
 		if (strcmp(BACK_CAM_NAME, cam) == 0) {
 			_backCamId = cam;
@@ -1686,15 +1672,14 @@ static int comp_call_state_paused(const LinphoneCall *call, const void *param) {
 
 	// handle proxy config if any
 	if (proxyCfg) {
-		if ([LinphoneManager.instance lpConfigBoolForKey:@"backgroundmode_preference"] ||
-			[LinphoneManager.instance lpConfigBoolForKey:@"pushnotification_preference"]) {
-
+		const char *refkey = proxyCfg ? linphone_proxy_config_get_ref_key(proxyCfg) : NULL;
+		BOOL pushNotifEnabled = (refkey && strcmp(refkey, "push_notification") == 0);
+		if ([LinphoneManager.instance lpConfigBoolForKey:@"backgroundmode_preference"] || pushNotifEnabled) {
 			// For registration register
 			[self refreshRegisters];
 		}
 
 		if ([LinphoneManager.instance lpConfigBoolForKey:@"backgroundmode_preference"]) {
-
 			// register keepalive
 			if ([[UIApplication sharedApplication]
 					setKeepAliveTimeout:600 /*(NSTimeInterval)linphone_proxy_config_get_expires(proxyCfg)*/
@@ -1739,7 +1724,9 @@ static int comp_call_state_paused(const LinphoneCall *call, const void *param) {
 	LOGI(@"Entering [%s] bg mode", shouldEnterBgMode ? "normal" : "lite");
 
 	if (!shouldEnterBgMode) {
-		if ([LinphoneManager.instance lpConfigBoolForKey:@"pushnotification_preference"]) {
+		const char *refkey = linphone_proxy_config_get_ref_key(proxyCfg);
+		BOOL pushNotifEnabled = (refkey && strcmp(refkey, "push_notification") == 0);
+		if (pushNotifEnabled) {
 			LOGI(@"Keeping lc core to handle push");
 			/*destroy voip socket if any and reset connectivity mode*/
 			connectivity = none;
@@ -2052,17 +2039,20 @@ static int comp_call_state_paused(const LinphoneCall *call, const void *param) {
 	}
 	_pushNotificationToken = apushNotificationToken;
 
-	LinphoneProxyConfig *cfg = linphone_core_get_default_proxy_config(theLinphoneCore);
-	if (cfg) {
-		linphone_proxy_config_edit(cfg);
-		[self configurePushTokenForProxyConfig:cfg];
-		linphone_proxy_config_done(cfg);
+	const MSList *proxies = linphone_core_get_proxy_config_list(LC);
+	while (proxies) {
+		[self configurePushTokenForProxyConfig:proxies->data];
+		proxies = proxies->next;
 	}
 }
 
 - (void)configurePushTokenForProxyConfig:(LinphoneProxyConfig *)proxyCfg {
+	linphone_proxy_config_edit(proxyCfg);
+
 	NSData *tokenData = _pushNotificationToken;
-	if (tokenData != nil && [self lpConfigBoolForKey:@"pushnotification_preference"]) {
+	const char *refkey = linphone_proxy_config_get_ref_key(proxyCfg);
+	BOOL pushNotifEnabled = (refkey && strcmp(refkey, "push_notification") == 0);
+	if (tokenData != nil && pushNotifEnabled) {
 		const unsigned char *tokenBuffer = [tokenData bytes];
 		NSMutableString *tokenString = [NSMutableString stringWithCapacity:[tokenData length] * 2];
 		for (int i = 0; i < [tokenData length]; ++i) {
@@ -2085,13 +2075,18 @@ static int comp_call_state_paused(const LinphoneCall *call, const void *param) {
 							 @"call-snd=%@;pn-msg-snd=msg.caf",
 							 [[NSBundle mainBundle] bundleIdentifier], APPMODE_SUFFIX, tokenString, ring];
 
+		LOGI(@"Proxy config %s configured for push notifications with contact: %@",
+			 linphone_proxy_config_get_identity(proxyCfg), params);
 		linphone_proxy_config_set_contact_uri_parameters(proxyCfg, [params UTF8String]);
 		linphone_proxy_config_set_contact_parameters(proxyCfg, NULL);
 	} else {
+		LOGI(@"Proxy config %s NOT configured for push notifications", linphone_proxy_config_get_identity(proxyCfg));
 		// no push token:
 		linphone_proxy_config_set_contact_uri_parameters(proxyCfg, NULL);
 		linphone_proxy_config_set_contact_parameters(proxyCfg, NULL);
 	}
+
+	linphone_proxy_config_done(proxyCfg);
 }
 
 #pragma mark - Misc Functions
@@ -2338,31 +2333,6 @@ static int comp_call_state_paused(const LinphoneCall *call, const void *param) {
 	return filter;
 }
 
-#pragma Tunnel
-
-- (void)setTunnelMode:(TunnelMode)atunnelMode {
-	LinphoneTunnel *tunnel = linphone_core_get_tunnel(theLinphoneCore);
-	_tunnelMode = atunnelMode;
-	switch (_tunnelMode) {
-		case tunnel_off:
-			linphone_tunnel_enable(tunnel, false);
-			break;
-		case tunnel_on:
-			linphone_tunnel_enable(tunnel, true);
-			break;
-		case tunnel_wwan:
-			if (connectivity != wwan) {
-				linphone_tunnel_enable(tunnel, false);
-			} else {
-				linphone_tunnel_enable(tunnel, true);
-			}
-			break;
-		case tunnel_auto:
-			linphone_tunnel_auto_detect(tunnel);
-			break;
-	}
-}
-
 #pragma mark - InApp Purchase events
 
 - (void)inappReady:(NSNotification *)notif {
@@ -2391,4 +2361,12 @@ static int comp_call_state_paused(const LinphoneCall *call, const void *param) {
 	return NO;
 }
 
+// ugly hack to export symbol from liblinphone so that they are available for the linphoneTests target
+// linphoneTests target do not link with liblinphone but instead dynamically link with ourself which is
+// statically linked with liblinphone, so we must have exported required symbols from the library to
+// have them available in linphoneTests
+// DO NOT INVOKE THIS METHOD
+- (void)exportSymbolsForUITests {
+	linphone_address_set_header(NULL, NULL, NULL);
+}
 @end

@@ -153,6 +153,7 @@
 
 - (void)viewWillAppear:(BOOL)animated {
 	[super viewWillAppear:animated];
+	[[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
 	[self.mainViewController viewWillAppear:animated];
 	[self.detailsViewController viewWillAppear:animated];
 	[self.tabBarViewController viewWillAppear:animated];
@@ -162,7 +163,6 @@
 										   selector:@selector(orientationDidChange:)
 											   name:UIDeviceOrientationDidChangeNotification
 											 object:nil];
-	[[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -175,25 +175,23 @@
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
-	[super viewWillDisappear:animated];
 	[self.mainViewController viewWillDisappear:animated];
 	[self.detailsViewController viewWillDisappear:animated];
 	[self.tabBarViewController viewWillDisappear:animated];
 	[self.statusBarViewController viewWillDisappear:animated];
 	[self.sideMenuViewController viewWillDisappear:animated];
-
-	[[UIDevice currentDevice] endGeneratingDeviceOrientationNotifications];
-
 	[NSNotificationCenter.defaultCenter removeObserver:self name:UIDeviceOrientationDidChangeNotification object:nil];
+	[[UIDevice currentDevice] endGeneratingDeviceOrientationNotifications];
+	[super viewWillDisappear:animated];
 }
 
 - (void)viewDidDisappear:(BOOL)animated {
-	[super viewDidDisappear:animated];
 	[self.mainViewController viewDidDisappear:animated];
 	[self.detailsViewController viewDidDisappear:animated];
 	[self.tabBarViewController viewDidDisappear:animated];
 	[self.statusBarViewController viewDidDisappear:animated];
 	[self.sideMenuViewController viewDidDisappear:animated];
+	[super viewDidDisappear:animated];
 }
 
 #pragma mark - Rotation messages
@@ -239,11 +237,18 @@
 #pragma mark - Event Functions
 
 - (void)orientationDidChange:(NSNotification *)notif {
-	// Update rotation
-	UIInterfaceOrientation correctOrientation =
-		[self getCorrectInterfaceOrientation:[[UIDevice currentDevice] orientation]];
-	if (currentOrientation != correctOrientation) {
-		[UICompositeView setOrientation:correctOrientation animated:currentOrientation != UIDeviceOrientationUnknown];
+	@try {
+		// Update rotation
+		UIInterfaceOrientation correctOrientation =
+			[self getCorrectInterfaceOrientation:[[UIDevice currentDevice] orientation]];
+		if (currentOrientation != correctOrientation) {
+			[UICompositeView setOrientation:correctOrientation
+								   animated:currentOrientation != UIDeviceOrientationUnknown];
+		}
+	} @catch (NSException *exception) {
+		// There are some crashes reports from iTunes connect because Linphone core is
+		// not ready yet - whatever the reason is, we can safely ignore the exception
+		LOGE(@"Exception: %@, ignoring", exception);
 	}
 }
 
@@ -565,22 +570,24 @@
 
 	// Compute frame for each elements
 	CGRect viewFrame = self.view.frame;
+	int origin = currentViewDescription.fullscreen ? 0 : IPHONE_STATUSBAR_HEIGHT;
 
 	// 1. status bar - fixed size on top
 	CGRect statusBarFrame = self.statusBarView.frame;
-	int origin = currentViewDescription.fullscreen ? 0 : IPHONE_STATUSBAR_HEIGHT;
 	if (self.statusBarViewController != nil && currentViewDescription.statusBarEnabled) {
 		statusBarFrame.origin.y = origin;
+		// move origin below status bar
+		origin += statusBarFrame.size.height;
 	} else {
-		statusBarFrame.origin.y = origin - statusBarFrame.size.height;
+		statusBarFrame.origin.y = -statusBarFrame.size.height;
 	}
 
 	//	2. side menu - fixed size, always starting below status bar (hack: except in fullscreen)
 	CGRect sideMenuFrame = viewFrame;
-	sideMenuFrame.origin.y = origin + (currentViewDescription.fullscreen ? 0 : statusBarFrame.size.height);
+	sideMenuFrame.origin.y = origin - (currentViewDescription.fullscreen ? statusBarFrame.size.height : 0);
 	sideMenuFrame.size.height -= sideMenuFrame.origin.y;
 	if (!currentViewDescription.sideMenuEnabled) {
-		// really hide; -width won't be enough since some animations may use this...
+		// hack bis: really hide; -width won't be enough since some animations may use this...
 		sideMenuFrame.origin.x = -3 * sideMenuFrame.size.width;
 	}
 
@@ -592,7 +599,7 @@
 		if (UIInterfaceOrientationIsPortrait([self currentOrientation])) {
 			tabFrame.origin.y = viewFrame.size.height - tabFrame.size.height;
 		} else {
-			tabFrame.origin.y = statusBarFrame.origin.y + statusBarFrame.size.height;
+			tabFrame.origin.y = origin;
 			tabFrame.size.height = viewFrame.size.height - tabFrame.origin.y;
 		}
 	} else {
@@ -602,7 +609,7 @@
 
 	//	4. main view and details view - space left width of 35%/65% each
 	CGRect mainFrame = viewFrame;
-	mainFrame.origin.y = statusBarFrame.origin.y + statusBarFrame.size.height;
+	mainFrame.origin.y = origin;
 	mainFrame.size.height -= mainFrame.origin.y;
 	if (!currentViewDescription.fullscreen) {
 		if (UIInterfaceOrientationIsPortrait([self currentOrientation])) {

@@ -94,7 +94,7 @@
 	[self startChatWith:[self me]];
 	[self uploadImageWithQuality:quality];
 	// wait for the upload to terminate...
-	for (int i = 0; i < 90; i++) {
+	for (int i = 0; i < 180; i++) {
 		[tester waitForTimeInterval:1.f];
 		if (LinphoneManager.instance.fileTransferDelegates.count == 0)
 			break;
@@ -191,9 +191,10 @@
 		linphone_chat_room_send_chat_message(room, msg);
 	}
 
-	for (int i = 0; i < 25; i++) {
-		[tester waitForTimeInterval:1.f];
-		if (linphone_chat_room_get_history_size(room) == count * 2) {
+	for (int i = 0; i < 50; i++) {
+		[tester waitForTimeInterval:.5f];
+
+		if (ms_list_size(linphone_chat_room_get_history(room, 0)) == count) {
 			break;
 		}
 	}
