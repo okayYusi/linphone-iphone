@@ -5122,11 +5122,7 @@
 				);
 				INFOPLIST_FILE = "LiblinphoneTester/LinphoneTester-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/liblinphone-sdk/apple-darwin/lib",
-					"$(PROJECT_DIR)/liblinphone-sdk/apple-darwin/lib/mediastreamer/plugins",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.belledonne-communications.tester.liblinphoneTester";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -5177,11 +5173,7 @@
 				);
 				INFOPLIST_FILE = "LiblinphoneTester/LinphoneTester-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/liblinphone-sdk/apple-darwin/lib",
-					"$(PROJECT_DIR)/liblinphone-sdk/apple-darwin/lib/mediastreamer/plugins",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.belledonne-communications.tester.liblinphoneTester";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
@@ -5232,11 +5224,7 @@
 				);
 				INFOPLIST_FILE = "LiblinphoneTester/LinphoneTester-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/liblinphone-sdk/apple-darwin/lib",
-					"$(PROJECT_DIR)/liblinphone-sdk/apple-darwin/lib/mediastreamer/plugins",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.belledonne-communications.tester.liblinphoneTester";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
@@ -5287,11 +5275,7 @@
 				);
 				INFOPLIST_FILE = "LiblinphoneTester/LinphoneTester-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/liblinphone-sdk/apple-darwin/lib",
-					"$(PROJECT_DIR)/liblinphone-sdk/apple-darwin/lib/mediastreamer/plugins",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.belledonne-communications.tester.liblinphoneTester";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
